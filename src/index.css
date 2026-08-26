@@ -1,0 +1,125 @@
+@tailwind base;
+@tailwind components;
+@tailwind utilities;
+
+@layer base {
+  :root {
+    --canvas: 245 246 248;
+    --surface: 255 255 255;
+    --surface-2: 248 249 251;
+    --line: 232 234 238;
+    --line-soft: 240 241 244;
+    --fg: 17 24 39;
+    --fg-muted: 75 85 99;
+    --fg-subtle: 156 163 175;
+    --brand: 37 99 235;
+    --brand-hover: 29 78 216;
+    --brand-soft: 239 244 255;
+    --success: 16 185 129;
+    --error: 239 68 68;
+    --error-soft: 254 242 242;
+    --warning: 245 158 11;
+    --pos-noun: 37 99 235;
+    --pos-verb: 37 99 235;
+    --pos-adjective: 37 99 235;
+    --pos-adverb: 37 99 235;
+  }
+
+  .dark {
+    --canvas: 15 18 26;
+    --surface: 24 28 38;
+    --surface-2: 30 35 47;
+    --line: 44 51 66;
+    --line-soft: 38 44 58;
+    --fg: 233 236 242;
+    --fg-muted: 160 172 190;
+    --fg-subtle: 118 130 148;
+    --brand: 96 138 255;
+    --brand-hover: 129 163 255;
+    --brand-soft: 33 45 74;
+    --error-soft: 61 30 33;
+  }
+
+  html {
+    font-family: theme('fontFamily.sans');
+    -webkit-tap-highlight-color: transparent;
+  }
+
+  body {
+    @apply min-h-screen bg-canvas text-fg antialiased;
+  }
+
+  /* Display settings (SettingsContext writes these attributes on <html>). */
+  :root {
+    --card-pad-y: 1rem;
+    --list-gap: 0.75rem;
+  }
+  :root[data-density='compact'] {
+    --card-pad-y: 0.625rem;
+    --list-gap: 0.5rem;
+  }
+  /*
+   * The whole design scale was tuned by eye at 80% browser zoom, so bake that
+   * ratio in here — 100% zoom then renders exactly what looked right at 80%.
+   * The type scale is in px, so scale the rendered box (zoom) rather than the
+   * root em, and layer the font-size setting as a multiplier on top of it.
+   */
+  body {
+    zoom: 0.8;
+  }
+  :root[data-font-size='small'] body {
+    zoom: 0.75;
+  }
+  :root[data-font-size='large'] body {
+    zoom: 0.86;
+  }
+
+  ::selection {
+    @apply bg-brand/20;
+  }
+}
+
+@layer components {
+  /* Flashcard 3D flip — not expressible as utilities */
+  .flip-scene {
+    perspective: 1200px;
+  }
+  .flip-card {
+    position: relative;
+    transform-style: preserve-3d;
+    transition: transform 0.5s cubic-bezier(0.4, 0, 0.2, 1);
+  }
+  .flip-card.is-flipped {
+    transform: rotateY(180deg);
+  }
+  .flip-face {
+    position: absolute;
+    inset: 0;
+    backface-visibility: hidden;
+    -webkit-backface-visibility: hidden;
+  }
+  .flip-face-back {
+    transform: rotateY(180deg);
+  }
+}
+
+@layer utilities {
+  .scrollbar-slim {
+    scrollbar-width: thin;
+    scrollbar-color: rgb(var(--line)) transparent;
+  }
+  .scrollbar-slim::-webkit-scrollbar {
+    width: 8px;
+    height: 8px;
+  }
+  .scrollbar-slim::-webkit-scrollbar-track {
+    background: transparent;
+  }
+  .scrollbar-slim::-webkit-scrollbar-thumb {
+    background-color: rgb(var(--line));
+    border-radius: 999px;
+  }
+  .scrollbar-slim::-webkit-scrollbar-thumb:hover {
+    background-color: rgb(var(--fg-subtle));
+  }
+}
