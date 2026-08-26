@@ -1,0 +1,21 @@
+node_modules
+dist
+dist-ssr
+.env
+.env.*.local
+*.local
+*.tsbuildinfo
+.DS_Store
+coverage
+playwright-report
+test-results
+.vite
+
+# backend (added in Phase 2)
+backend/.venv
+backend/__pycache__
+backend/**/__pycache__
+backend/.pytest_cache
+backend/.mypy_cache
+backend/.ruff_cache
+backend/*.egg-info
