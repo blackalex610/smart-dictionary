@@ -39,6 +39,36 @@ jobs:
       - name: Build
         run: npm run build
 
+  backend:
+    name: backend (lint, typecheck, test)
+    runs-on: ubuntu-latest
+    defaults:
+      run:
+        working-directory: backend
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/setup-python@v5
+        with:
+          python-version: "3.11"
+          cache: pip
+          cache-dependency-path: backend/pyproject.toml
+
+      - run: pip install -e ".[dev]"
+
+      - name: Lint
+        run: ruff check .
+
+      - name: Typecheck
+        run: mypy app
+
+      # Unit tests only for now -- no route needs a real database yet
+      # (GET /api/v1/me is the only one, and it's exercised against a live
+      # Supabase project manually until Phase 3 adds real integration
+      # tests against a throwaway CI Postgres, per docs/architecture/v2-plan.md §K).
+      - name: Unit tests
+        run: pytest
+
   security:
     name: dependency audit
     runs-on: ubuntu-latest
