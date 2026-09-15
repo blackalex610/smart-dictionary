@@ -213,8 +213,13 @@ src/pages/ReviewPage.tsx   NEW
   `useWordsBackend()` returns it. `WordCard`, `WordList`, `AddWordForm`,
   `SearchBar`, `FolderSidebar` are not modified — that's the payoff of
   `WordsBackend` already existing as a seam.
-- Delete `src/lib/guest/` (both files) and `src/lib/supabase/{words,progress,usage,profiles}.ts`.
-  `src/lib/supabase/client.ts` and `auth.ts` stay — Supabase remains the auth SDK.
+- Delete `src/lib/guest/` (both files) and `src/lib/supabase/words.ts` (the only Supabase-direct
+  file this work order's backend replaces). `src/lib/supabase/{progress,usage,profiles}.ts` are
+  **not** deleted here despite v2-plan.md §G grouping them together — those back quiz history,
+  AI usage display, and profile upsert respectively, none of which this work order cuts over
+  (quiz generation/grading is Phase 6, per the explicit scope deferral above). Deleting them now
+  would break `useQuizHistory`, `useAiUsage`, and `AuthContext` with no replacement built here.
+  `src/lib/supabase/client.ts` and `auth.ts` stay regardless — Supabase remains the auth SDK.
 - One-time guest-data import prompt on first login (reads whatever the guest
   path had locally, offers to import into the new default dictionary, then
   never shows again).
