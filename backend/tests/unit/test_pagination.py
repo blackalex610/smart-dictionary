@@ -29,3 +29,21 @@ def test_decode_rejects_missing_fields():
     bad = base64.urlsafe_b64encode(json.dumps({"v": "only-value"}).encode()).decode()
     with pytest.raises(ValueError):
         decode_cursor(bad)
+
+
+def test_decode_rejects_non_string_value():
+    import base64
+    import json
+
+    bad = base64.urlsafe_b64encode(json.dumps({"v": 123, "i": "id"}).encode()).decode()
+    with pytest.raises(ValueError):
+        decode_cursor(bad)
+
+
+def test_decode_rejects_non_string_id():
+    import base64
+    import json
+
+    bad = base64.urlsafe_b64encode(json.dumps({"v": "value", "i": None}).encode()).decode()
+    with pytest.raises(ValueError):
+        decode_cursor(bad)

@@ -23,6 +23,9 @@ def decode_cursor(cursor: str) -> Cursor:
     try:
         raw = base64.urlsafe_b64decode(cursor.encode())
         data = json.loads(raw)
-        return Cursor(value=data["v"], id=data["i"])
+        value, id_ = data["v"], data["i"]
+        if not isinstance(value, str) or not isinstance(id_, str):
+            raise ValueError("Invalid pagination cursor")
+        return Cursor(value=value, id=id_)
     except (binascii.Error, ValueError, KeyError, TypeError) as exc:
         raise ValueError("Invalid pagination cursor") from exc
