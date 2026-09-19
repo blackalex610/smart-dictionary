@@ -52,10 +52,24 @@ supabase secrets set OPENAI_MODEL=gpt-4o-mini
 
 - `protect_profile_tier_update()` checks the legacy PostgREST GUC
   (`request.jwt.claim.role`), which current PostgREST does not set. Tier can
-  currently never be changed by anyone, including `service_role`. Not fixed
-  here because the `tier` column itself is dropped in Phase 3 (single-tier
-  model).
-- `enforce_words_limit()` runs a `count(*)` per inserted row — O(n) per row
-  on bulk import. Replaced by a service-layer check in Phase 3.
+  currently never be changed by anyone, including `service_role`. **Not
+  dropped in Phase 3 after all**: `src/lib/supabase/profiles.ts:14` still
+  does `select('user_id, display_name, avatar_url, tier')` against the live
+  table, so removing the column now (before the Phase 4 frontend cut-over
+  stops selecting it) would 400 every profile fetch in production. Deferred
+  to Phase 4, alongside that query's update — same expand/contract reasoning
+  as `words.folder`, `progress`, and `usage_daily.daily_limit` below.
+- `enforce_words_limit()` (the O(n)-per-row 300-word cap trigger) was
+  dropped in migration 0002 — it has no live reader outside the trigger
+  itself, so no frontend dependency blocked it. The global word cap becomes
+  a service-layer check once the words API exists (Phase 4).
 - Authorization lives entirely in RLS today. It gets a second, independently
   testable layer once the FastAPI backend lands (Phase 2+); see the plan.
+- Migrations 0002–0006 (Phase 3) add `dictionaries`, `word_reviews`,
+  `review_log`, `quiz_attempts`/`quiz_answers`, `ai_requests`, `ai_cache` and
+  `import_jobs`, and reshape `usage_daily` with new counters. `words.folder`,
+  `progress`, and `usage_daily.daily_limit` are intentionally _not_ dropped
+  yet — each still has a live reader/writer that the Phase 4 (frontend) and
+  Phase 6 (AI service) cut-overs replace. Alembic (`backend/alembic/`) is now
+  the single lineage; new schema changes belong there, not as new files in
+  this directory.
