@@ -21,7 +21,25 @@ def include_object(object, name, type_, reflected, compare_to):
     """Keep `auth.*` (owned by Supabase, e.g. `auth.users`) out of autogenerate
     and `alembic check` -- it exists in `Base.metadata` only so that
     `ForeignKey("auth.users.id")` columns can resolve, and must never be
-    created, altered, or dropped by our migrations."""
+    created, altered, or dropped by our migrations.
+
+    Also excludes indexes from the comparison entirely. Indexes are managed
+    exclusively in the migration files, not mirrored onto the ORM models: most
+    of them are expression, partial, or GIN/trigram indexes (e.g.
+    `sa.text("lower(name)")`, `sa.text("to_tsvector('simple', word || ' ' ||
+    definition)")`, `postgresql_where=...`, `postgresql_using="gin"`,
+    `postgresql_ops={...}`) that SQLAlchemy's ORM layer cannot faithfully
+    represent as `Index(...)` objects and that Alembic's autogenerate cannot
+    reliably compare (expressions render as opaque `_textual_index_element`
+    objects and `postgresql_where` is compared as raw text, so whitespace,
+    casts, and parenthesization all read as spurious differences). Mirroring
+    them would not converge to a clean diff and risks a future autogenerate
+    emitting incorrect DDL for them. The drift check this enables therefore
+    covers columns, column types, and foreign keys only -- NOT indexes. Plain
+    (non-index) constraints, such as unique constraints, are still compared
+    normally and should be mirrored onto the models as usual."""
+    if type_ == "index":
+        return False
     schema = getattr(object, "schema", None)
     if schema is None and type_ == "column":
         schema = getattr(object.table, "schema", None)

@@ -1,7 +1,7 @@
 import uuid
 from datetime import datetime
 
-from sqlalchemy import DateTime, ForeignKey, SmallInteger, Text, text
+from sqlalchemy import DateTime, ForeignKey, SmallInteger, Text, UniqueConstraint, text
 from sqlalchemy.dialects.postgresql import JSONB, UUID
 from sqlalchemy.orm import Mapped, mapped_column
 
@@ -32,6 +32,9 @@ class QuizAttempt(Base):
 
 class QuizAnswer(Base):
     __tablename__ = "quiz_answers"
+    __table_args__ = (
+        UniqueConstraint("attempt_id", "position", name="quiz_answers_attempt_position_unique"),
+    )
 
     id: Mapped[uuid.UUID] = mapped_column(
         UUID(as_uuid=True), primary_key=True, server_default=text("gen_random_uuid()")
