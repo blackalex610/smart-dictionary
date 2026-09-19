@@ -81,16 +81,19 @@ def test_review_card_good_uses_ease_as_multiplier_and_keeps_ease_flat():
     review = ReviewState(word_id=WORD_ID, state="review", step=0, ease=Decimal("2.50"), interval=10)
     new_state, _due = next_state(review, GOOD, NOW)
     assert new_state.ease == Decimal("2.50")
-    # round(10 * 2.50) == 25, fuzz applied but must land within ±5%
-    assert 24 <= new_state.interval <= 26
+    # fuzz(WORD_ID) == 1.0230436838402048 (deterministic); round(10 * 2.50 * fuzz) == 26.
+    # Exact, not a range: a range this wide also accepts a multiplier bug (e.g. using
+    # ease - 0.15 instead of ease), since the mutated interval still lands inside it.
+    assert new_state.interval == 26
 
 
 def test_review_card_easy_increases_ease_and_uses_1_3x_ease_multiplier():
     review = ReviewState(word_id=WORD_ID, state="review", step=0, ease=Decimal("2.50"), interval=10)
     new_state, _due = next_state(review, EASY, NOW)
     assert new_state.ease == Decimal("2.60")
-    # round(10 * 2.60 * 1.3) == 34, fuzz applied but must land within ±5%
-    assert 32 <= new_state.interval <= 36
+    # fuzz(WORD_ID) == 1.0230436838402048 (deterministic); ease * 1.3 == 3.380;
+    # round(10 * 3.380 * fuzz) == 35. Exact, not a range -- see comment on the GOOD test.
+    assert new_state.interval == 35
 
 
 def test_relearning_card_behaves_like_learning():
