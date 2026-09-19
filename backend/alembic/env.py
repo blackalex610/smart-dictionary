@@ -17,19 +17,33 @@ if config.config_file_name is not None:
 target_metadata = Base.metadata
 
 
+def include_object(object, name, type_, reflected, compare_to):
+    """Keep `auth.*` (owned by Supabase, e.g. `auth.users`) out of autogenerate
+    and `alembic check` -- it exists in `Base.metadata` only so that
+    `ForeignKey("auth.users.id")` columns can resolve, and must never be
+    created, altered, or dropped by our migrations."""
+    schema = getattr(object, "schema", None)
+    if schema is None and type_ == "column":
+        schema = getattr(object.table, "schema", None)
+    return schema != "auth"
+
+
 def run_migrations_offline() -> None:
     context.configure(
         url=get_settings().database_url,
         target_metadata=target_metadata,
         literal_binds=True,
         dialect_opts={"paramstyle": "named"},
+        include_object=include_object,
     )
     with context.begin_transaction():
         context.run_migrations()
 
 
 def _do_run_migrations(connection: Connection) -> None:
-    context.configure(connection=connection, target_metadata=target_metadata)
+    context.configure(
+        connection=connection, target_metadata=target_metadata, include_object=include_object
+    )
     with context.begin_transaction():
         context.run_migrations()
 

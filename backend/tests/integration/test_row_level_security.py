@@ -23,7 +23,7 @@ TABLES_WITH_NO_POLICIES = ["ai_requests", "ai_cache", "import_jobs"]
 @pytest.mark.parametrize("table_name", list(TABLES_WITH_OWNER_POLICIES) + TABLES_WITH_NO_POLICIES)
 async def test_rls_is_enabled(db_session, table_name):
     enabled = await db_session.scalar(
-        text("select relrowsecurity from pg_class where oid = :name::regclass"),
+        text("select relrowsecurity from pg_class where oid = cast(:name as regclass)"),
         {"name": f"public.{table_name}"},
     )
     assert enabled is True, f"{table_name} does not have row level security enabled"
