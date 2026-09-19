@@ -27,7 +27,13 @@ class ReviewRepository:
 
     async def get_state(self, word_id: uuid.UUID, user_id: uuid.UUID) -> ReviewState | None:
         review = await self._session.scalar(
-            select(WordReview).where(WordReview.word_id == word_id, WordReview.user_id == user_id)
+            select(WordReview)
+            .join(Word, Word.id == WordReview.word_id)
+            .where(
+                WordReview.word_id == word_id,
+                WordReview.user_id == user_id,
+                Word.deleted_at.is_(None),
+            )
         )
         return _to_domain(review) if review is not None else None
 
@@ -42,7 +48,13 @@ class ReviewRepository:
         elapsed_ms: int | None,
     ) -> tuple[ReviewState, datetime]:
         review = await self._session.scalar(
-            select(WordReview).where(WordReview.word_id == word_id, WordReview.user_id == user_id)
+            select(WordReview)
+            .join(Word, Word.id == WordReview.word_id)
+            .where(
+                WordReview.word_id == word_id,
+                WordReview.user_id == user_id,
+                Word.deleted_at.is_(None),
+            )
         )
         if review is None:
             raise LookupError(f"No word_reviews row for word_id={word_id}, user_id={user_id}")

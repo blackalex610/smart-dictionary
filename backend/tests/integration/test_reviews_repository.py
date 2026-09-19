@@ -3,7 +3,7 @@ from datetime import UTC, datetime, timedelta
 import pytest
 from sqlalchemy import select
 
-from app.models import ReviewLog, WordReview
+from app.models import ReviewLog, Word, WordReview
 from app.repositories.reviews import ReviewRepository
 from app.services.srs import GOOD
 from tests.factories import create_dictionary, create_user, create_word, set_review_state
@@ -70,6 +70,46 @@ async def test_apply_rating_raises_for_word_with_no_review_row(db_session):
         )
 
 
+async def test_apply_rating_raises_for_wrong_user(db_session):
+    owner = await create_user(db_session, email="owner@example.com")
+    other = await create_user(db_session, email="other@example.com")
+    dictionary = await create_dictionary(db_session, owner)
+    word = await create_word(db_session, dictionary.id, owner)
+
+    repo = ReviewRepository(db_session)
+    with pytest.raises(LookupError):
+        await repo.apply_rating(
+            word.id, other, GOOD, datetime.now(UTC), source="flashcard", elapsed_ms=None
+        )
+
+
+async def test_get_state_returns_none_for_soft_deleted_word(db_session):
+    user_id = await create_user(db_session)
+    dictionary = await create_dictionary(db_session, user_id)
+    word = await create_word(db_session, dictionary.id, user_id)
+    word_row = await db_session.get(Word, word.id)
+    word_row.deleted_at = datetime.now(UTC)
+    await db_session.flush()
+
+    repo = ReviewRepository(db_session)
+    assert await repo.get_state(word.id, user_id) is None
+
+
+async def test_apply_rating_raises_for_soft_deleted_word(db_session):
+    user_id = await create_user(db_session)
+    dictionary = await create_dictionary(db_session, user_id)
+    word = await create_word(db_session, dictionary.id, user_id)
+    word_row = await db_session.get(Word, word.id)
+    word_row.deleted_at = datetime.now(UTC)
+    await db_session.flush()
+
+    repo = ReviewRepository(db_session)
+    with pytest.raises(LookupError):
+        await repo.apply_rating(
+            word.id, user_id, GOOD, datetime.now(UTC), source="flashcard", elapsed_ms=None
+        )
+
+
 async def test_queue_returns_due_review_words_before_new_words(db_session):
     user_id = await create_user(db_session)
     dictionary = await create_dictionary(db_session, user_id)
@@ -120,6 +160,21 @@ async def test_queue_filters_by_dictionary(db_session):
     assert [w.word for w, _r in rows] == ["ina"]
 
 
+async def test_queue_excludes_other_users_words(db_session):
+    user_a = await create_user(db_session, email="a@example.com")
+    user_b = await create_user(db_session, email="b@example.com")
+    dictionary_b = await create_dictionary(db_session, user_b)
+    now = datetime(2026, 9, 15, 10, 0, tzinfo=UTC)
+
+    due_word_b = await create_word(db_session, dictionary_b.id, user_b, word="bdue")
+    await set_review_state(db_session, due_word_b.id, due_at=now - timedelta(hours=1))
+    await create_word(db_session, dictionary_b.id, user_b, word="bnew")
+
+    repo = ReviewRepository(db_session)
+    rows = await repo.queue(user_a, dictionary_id=None, new_cap=10, review_cap=10, now=now)
+    assert rows == []
+
+
 async def test_forecast_counts_due_per_day(db_session):
     user_id = await create_user(db_session)
     dictionary = await create_dictionary(db_session, user_id)
@@ -135,3 +190,18 @@ async def test_forecast_counts_due_per_day(db_session):
 
     assert forecast[(now + timedelta(days=1)).date()] == 2
     assert forecast[(now + timedelta(days=2)).date()] == 0
+
+
+async def test_forecast_excludes_other_users_words(db_session):
+    user_a = await create_user(db_session, email="a2@example.com")
+    user_b = await create_user(db_session, email="b2@example.com")
+    dictionary_b = await create_dictionary(db_session, user_b)
+    now = datetime(2026, 9, 15, 10, 0, tzinfo=UTC)
+
+    word_b = await create_word(db_session, dictionary_b.id, user_b, word="btomorrow")
+    await set_review_state(db_session, word_b.id, due_at=now + timedelta(days=1))
+
+    repo = ReviewRepository(db_session)
+    forecast = await repo.forecast(user_a, days=7, now=now)
+
+    assert forecast[(now + timedelta(days=1)).date()] == 0
