@@ -1,0 +1,64 @@
+[
+  {
+    "description": "new+again",
+    "input": { "state": "new", "step": 0, "ease": "2.50", "interval": 0 },
+    "rating": 1,
+    "expectState": "learning",
+    "expectStep": 0,
+    "expectDueMinutes": 1
+  },
+  {
+    "description": "new+good",
+    "input": { "state": "new", "step": 0, "ease": "2.50", "interval": 0 },
+    "rating": 3,
+    "expectState": "learning",
+    "expectStep": 1,
+    "expectDueMinutes": 10
+  },
+  {
+    "description": "learning_step1+good_graduates",
+    "input": { "state": "learning", "step": 1, "ease": "2.50", "interval": 0 },
+    "rating": 3,
+    "expectState": "review",
+    "expectStep": 0,
+    "expectInterval": 1,
+    "expectDueDays": 1
+  },
+  {
+    "description": "new+easy",
+    "input": { "state": "new", "step": 0, "ease": "2.50", "interval": 0 },
+    "rating": 4,
+    "expectState": "review",
+    "expectStep": 0,
+    "expectInterval": 4,
+    "expectDueDays": 4
+  },
+  {
+    "description": "review+again_lapses",
+    "input": { "state": "review", "step": 0, "ease": "2.50", "interval": 10 },
+    "rating": 1,
+    "expectState": "relearning",
+    "expectStep": 0,
+    "expectEase": "2.30",
+    "expectInterval": 1,
+    "expectDueDays": 1
+  },
+  {
+    "description": "review+hard_ease",
+    "input": { "state": "review", "step": 0, "ease": "2.50", "interval": 10 },
+    "rating": 2,
+    "expectEase": "2.35"
+  },
+  {
+    "description": "review+good_ease_unchanged",
+    "input": { "state": "review", "step": 0, "ease": "2.50", "interval": 10 },
+    "rating": 3,
+    "expectEase": "2.50"
+  },
+  {
+    "description": "review+easy_ease",
+    "input": { "state": "review", "step": 0, "ease": "2.50", "interval": 10 },
+    "rating": 4,
+    "expectEase": "2.60"
+  }
+]
