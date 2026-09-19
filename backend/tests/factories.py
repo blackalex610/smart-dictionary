@@ -3,11 +3,13 @@ there's no need for randomised/traited factories yet with this few entities,
 and a dependency earns its place when the plain version gets unwieldy."""
 
 import uuid
+from datetime import datetime
+from decimal import Decimal
 
 from sqlalchemy import text
 from sqlalchemy.ext.asyncio import AsyncSession
 
-from app.models import Dictionary, Word
+from app.models import Dictionary, Word, WordReview
 
 
 async def create_user(session: AsyncSession, *, email: str = "test@example.com") -> uuid.UUID:
@@ -51,3 +53,22 @@ async def create_word(
     session.add(row)
     await session.flush()
     return row
+
+
+async def set_review_state(
+    session: AsyncSession,
+    word_id: uuid.UUID,
+    *,
+    state: str = "review",
+    ease_factor: str = "2.50",
+    interval_days: int = 10,
+    due_at: datetime | None = None,
+) -> WordReview:
+    review = await session.get(WordReview, word_id)
+    assert review is not None, "word_reviews row should exist via the create_word_review trigger"
+    review.state = state
+    review.ease_factor = Decimal(ease_factor)
+    review.interval_days = interval_days
+    review.due_at = due_at
+    await session.flush()
+    return review
