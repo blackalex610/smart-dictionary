@@ -71,10 +71,12 @@ export function AddWordForm({
   // changes, rather than in an effect — avoids the extra render an effect
   // would cause and the flash of stale values it would produce on the first
   // paint after `editing` changes. See https://react.dev/learn/you-might-not-need-an-effect
-  const [snapshotKey, setSnapshotKey] = useState(editing?.id ?? `folder:${activeFolder}`)
-  const desiredKey = editing?.id ?? `folder:${activeFolder}`
-  if (desiredKey !== snapshotKey) {
-    setSnapshotKey(desiredKey)
+  const [snapshot, setSnapshot] = useState({ editingId: editing?.id ?? null, activeFolder })
+  const changed =
+    snapshot.editingId !== (editing?.id ?? null) || snapshot.activeFolder !== activeFolder
+  if (changed) {
+    const wasEditing = snapshot.editingId !== null
+    setSnapshot({ editingId: editing?.id ?? null, activeFolder })
     if (editing) {
       setWord(editing.word)
       setMeaning(editing.definition)
@@ -83,6 +85,19 @@ export function AddWordForm({
       setExample(editing.example ?? '')
       setError(null)
     } else {
+      // Leaving edit mode (Cancel, or a successful save) has to clear the
+      // fields: otherwise the edited word's text stays in what is now the
+      // "add new word" form, and the next submit re-adds it -- which the
+      // duplicate check then rejects with a confusing error. Only the
+      // active folder changing keeps whatever the user has typed.
+      if (wasEditing) {
+        setWord('')
+        setMeaning('')
+        setPartOfSpeech('')
+        setExample('')
+        setPronunciation(false)
+        setError(null)
+      }
       setFolder(activeFolder)
     }
   }

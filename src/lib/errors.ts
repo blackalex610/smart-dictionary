@@ -27,13 +27,18 @@ interface MaybePostgrestError {
   details?: string
 }
 
+/**
+ * P0001 is Postgres' generic `raise_exception`, so the code alone identifies
+ * nothing: the `protect_profile_tier_update` trigger raises it too, and any
+ * future `raise exception` without an explicit errcode will as well. The
+ * `enforce_words_limit` trigger prefixes its message with this marker
+ * precisely so the client can tell them apart, so match on the marker.
+ */
 export function isFreeWordLimit(err: unknown): boolean {
   const e = err as MaybePostgrestError | null
   if (!e) return false
-  return (
-    e.code === 'P0001' ||
-    (typeof e.message === 'string' && e.message.includes('FREE_WORD_LIMIT_REACHED'))
-  )
+  const text = `${e.message ?? ''} ${e.details ?? ''}`
+  return text.includes('FREE_WORD_LIMIT_REACHED')
 }
 
 /** PostgREST reports an unknown column as 42703 (PG) or PGRST204 (schema cache). */

@@ -9,7 +9,12 @@ import { useRefreshAiUsage } from '@/hooks/useAiUsage'
 import { useWordsBackend } from '@/hooks/useWords'
 import { AiDailyLimitError, FreeWordLimitError } from '@/lib/errors'
 import { DEFAULT_FOLDER } from '@/lib/folders'
-import { parseJsonExport, parseStructuredLines, type ParsedImport } from '@/lib/importParse'
+import {
+  parseCsvExport,
+  parseJsonExport,
+  parseStructuredLines,
+  type ParsedImport,
+} from '@/lib/importParse'
 import { aiStructureWords } from '@/lib/supabase/ai'
 import type { NewWord } from '@/types/domain'
 
@@ -40,6 +45,9 @@ export function ImportWordsButton({ folder, variant = 'secondary', className }: 
   const parse = async (text: string): Promise<ParsedImport> => {
     const asJson = parseJsonExport(text)
     if (asJson) return asJson
+
+    const asCsv = parseCsvExport(text)
+    if (asCsv) return asCsv
 
     const structured = parseStructuredLines(text)
     if (structured.words.length > 0) return structured

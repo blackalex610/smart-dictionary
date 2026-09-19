@@ -34,10 +34,14 @@ export function Modal({ open, onClose, labelledBy, className, children }: ModalP
     document.addEventListener('keydown', onKeyDown)
     const previousOverflow = document.body.style.overflow
     document.body.style.overflow = 'hidden'
-    window.setTimeout(() => {
+    const focusTimer = window.setTimeout(() => {
       panelRef.current?.querySelector<HTMLElement>('input, button')?.focus()
     }, 0)
     return () => {
+      // The autofocus is deferred a tick so the panel is in the document by
+      // the time it runs; a modal closed within that tick must cancel it,
+      // or it steals focus back from whatever the app moved to.
+      window.clearTimeout(focusTimer)
       document.removeEventListener('keydown', onKeyDown)
       document.body.style.overflow = previousOverflow
     }
