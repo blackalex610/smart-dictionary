@@ -61,7 +61,8 @@ def test_alg_none_rejected_before_signature_is_ever_checked(settings, rsa_key_pa
     ["RS256", "ES256"] in jwt.decode must reject this outright."""
     _, public_key = rsa_key_pair
     forged = pyjwt.api_jws.encode(
-        b'{"sub":"attacker","aud":"authenticated","iss":"' + f"{SUPABASE_URL}/auth/v1".encode()
+        b'{"sub":"attacker","aud":"authenticated","iss":"'
+        + f"{SUPABASE_URL}/auth/v1".encode()
         + b'","exp":9999999999}',
         key="",
         algorithm="none",

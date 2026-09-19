@@ -41,8 +41,18 @@ def upgrade() -> None:
         sa.Column("display_name", sa.Text(), nullable=True),
         sa.Column("avatar_url", sa.Text(), nullable=True),
         sa.Column("tier", sa.Text(), nullable=False, server_default="free"),
-        sa.Column("created_at", sa.DateTime(timezone=True), server_default=sa.text("now()")),
-        sa.Column("updated_at", sa.DateTime(timezone=True), server_default=sa.text("now()")),
+        sa.Column(
+            "created_at",
+            sa.DateTime(timezone=True),
+            nullable=False,
+            server_default=sa.text("now()"),
+        ),
+        sa.Column(
+            "updated_at",
+            sa.DateTime(timezone=True),
+            nullable=False,
+            server_default=sa.text("now()"),
+        ),
         sa.CheckConstraint("tier in ('free', 'premium')", name="profiles_tier_check"),
         sa.ForeignKeyConstraint(["user_id"], ["auth.users.id"], ondelete="CASCADE"),
         schema="public",
@@ -63,8 +73,18 @@ def upgrade() -> None:
         sa.Column("folder", sa.Text(), nullable=True),
         sa.Column("example", sa.Text(), nullable=True),
         sa.Column("source", sa.Text(), nullable=False, server_default="manual"),
-        sa.Column("created_at", sa.DateTime(timezone=True), server_default=sa.text("now()")),
-        sa.Column("updated_at", sa.DateTime(timezone=True), server_default=sa.text("now()")),
+        sa.Column(
+            "created_at",
+            sa.DateTime(timezone=True),
+            nullable=False,
+            server_default=sa.text("now()"),
+        ),
+        sa.Column(
+            "updated_at",
+            sa.DateTime(timezone=True),
+            nullable=False,
+            server_default=sa.text("now()"),
+        ),
         sa.CheckConstraint(
             "part_of_speech in ('noun', 'verb', 'adjective', 'adverb')",
             name="words_part_of_speech_check",
@@ -103,7 +123,12 @@ def upgrade() -> None:
         sa.Column(
             "details", postgresql.JSONB(), nullable=False, server_default=sa.text("'{}'::jsonb")
         ),
-        sa.Column("created_at", sa.DateTime(timezone=True), server_default=sa.text("now()")),
+        sa.Column(
+            "created_at",
+            sa.DateTime(timezone=True),
+            nullable=False,
+            server_default=sa.text("now()"),
+        ),
         sa.ForeignKeyConstraint(["user_id"], ["auth.users.id"], ondelete="CASCADE"),
         schema="public",
     )
@@ -125,7 +150,12 @@ def upgrade() -> None:
         ),
         sa.Column("ai_requests", sa.Integer(), nullable=False, server_default="0"),
         sa.Column("daily_limit", sa.Integer(), nullable=False, server_default="50"),
-        sa.Column("updated_at", sa.DateTime(timezone=True), server_default=sa.text("now()")),
+        sa.Column(
+            "updated_at",
+            sa.DateTime(timezone=True),
+            nullable=False,
+            server_default=sa.text("now()"),
+        ),
         sa.ForeignKeyConstraint(["user_id"], ["auth.users.id"], ondelete="CASCADE"),
         schema="public",
     )

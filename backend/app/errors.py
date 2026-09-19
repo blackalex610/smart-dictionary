@@ -8,7 +8,10 @@ raise them with just the human `detail`.
 from starlette.requests import Request
 from starlette.responses import JSONResponse
 
-from app.logging import _request_id
+from app.config import get_settings
+from app.logging import _request_id, get_logger
+
+logger = get_logger(__name__)
 
 
 class AppError(Exception):
@@ -68,10 +71,50 @@ async def app_error_handler(request: Request, exc: AppError) -> JSONResponse:
     )
 
 
+def _cors_headers(request: Request) -> dict[str, str]:
+    """Starlette wires exception handlers as `{AppError: ..., Exception: ...}`;
+    a handler for the bare `Exception` type (`500` in FastAPI's shorthand) is
+    installed on `ServerErrorMiddleware`, the *outermost* layer of the stack,
+    while `add_middleware(CORSMiddleware, ...)` sits further in -- see
+    `Starlette.build_middleware_stack`. An `AppError` is caught by
+    `ExceptionMiddleware`, which is inside `CORSMiddleware`, so its response
+    passes back through and gets CORS headers for free. A truly unhandled
+    exception never reaches `ExceptionMiddleware` at all: it propagates past
+    `CORSMiddleware` before any response has been sent, so `CORSMiddleware`
+    never gets the chance to inject anything, and this handler's response is
+    the first one actually sent on the wire.
+
+    Without this, a bug that only some requests hit surfaces to the browser
+    as an opaque CORS failure instead of the real 500 -- and that failure
+    depends on which request happened to be same-origin.
+
+    Mirrors exactly what `CORSMiddleware.send` does for a "simple" (non-
+    preflight) response with a fixed, non-wildcard origin list and
+    `allow_credentials=False`: echo the request's `Origin` back if and only
+    if it's on the allowlist, plus `Vary: Origin` so a cache never serves one
+    origin's response to another.
+    """
+    origin = request.headers.get("origin")
+    if origin is None or origin not in get_settings().cors_origins:
+        return {}
+    return {"Access-Control-Allow-Origin": origin, "Vary": "Origin"}
+
+
 async def unhandled_error_handler(request: Request, exc: Exception) -> JSONResponse:
+    # The response body deliberately says nothing about `exc` -- but the
+    # traceback has to go somewhere, or a 500 is unattributable in
+    # production. Logged with the request id the caller was handed back, so
+    # a bug report quoting it leads straight to this line.
+    logger.exception(
+        "unhandled_error",
+        method=request.method,
+        path=request.url.path,
+        error_type=type(exc).__name__,
+    )
     fallback = AppError("An unexpected error occurred.")
     return JSONResponse(
         status_code=500,
         content=_problem_body(fallback),
         media_type="application/problem+json",
+        headers=_cors_headers(request),
     )
