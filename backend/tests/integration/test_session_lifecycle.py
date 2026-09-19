@@ -1,6 +1,11 @@
 """get_session must commit on success -- every write endpoint from here on
 depends on it. Uses the real session_factory (not the rolled-back
-db_session fixture) so the commit is actually exercised against Postgres."""
+db_session fixture) so the commit is actually exercised against Postgres.
+
+The assertion is scoped to a uuid4-derived name and user_id generated
+fresh for this run, and every row the test inserts is removed in a
+`finally` block (even on assertion failure), so a pass here can never be
+satisfied by, and never leaves behind, residue from another run."""
 
 import uuid
 
@@ -29,6 +34,7 @@ async def test_get_session_commits_on_success(_migrated_database):
         app = _FakeApp
 
     user_id = uuid.uuid4()
+    dictionary_name = f"Committed-{uuid.uuid4()}"
     async with session_factory() as setup_session:
         await setup_session.execute(
             text("insert into auth.users (id) values (:id)"),
@@ -36,16 +42,28 @@ async def test_get_session_commits_on_success(_migrated_database):
         )
         await setup_session.commit()
 
-    gen = get_session(_FakeRequest())  # type: ignore[arg-type]
-    session = await gen.__anext__()
-    session.add(Dictionary(user_id=user_id, name="Committed"))
-    with pytest.raises(StopAsyncIteration):
-        await gen.__anext__()
+    try:
+        gen = get_session(_FakeRequest())  # type: ignore[arg-type]
+        session = await gen.__anext__()
+        session.add(Dictionary(user_id=user_id, name=dictionary_name))
+        with pytest.raises(StopAsyncIteration):
+            await gen.__anext__()
 
-    async with session_factory() as verify_session:
-        found = await verify_session.scalar(
-            select(Dictionary).where(Dictionary.name == "Committed")
-        )
-        assert found is not None
-
-    await engine.dispose()
+        async with session_factory() as verify_session:
+            found = await verify_session.scalar(
+                select(Dictionary).where(
+                    Dictionary.user_id == user_id,
+                    Dictionary.name == dictionary_name,
+                )
+            )
+            assert found is not None
+    finally:
+        async with session_factory() as cleanup_session:
+            await cleanup_session.execute(
+                text("delete from dictionaries where user_id = :id"), {"id": user_id}
+            )
+            await cleanup_session.execute(
+                text("delete from auth.users where id = :id"), {"id": user_id}
+            )
+            await cleanup_session.commit()
+        await engine.dispose()
