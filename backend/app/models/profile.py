@@ -1,7 +1,7 @@
 import uuid
 from datetime import datetime
 
-from sqlalchemy import DateTime, ForeignKey, Text, text
+from sqlalchemy import DateTime, ForeignKey, SmallInteger, Text, text
 from sqlalchemy.dialects.postgresql import UUID
 from sqlalchemy.orm import Mapped, mapped_column
 
@@ -17,6 +17,10 @@ class Profile(Base):
     display_name: Mapped[str | None] = mapped_column(Text)
     avatar_url: Mapped[str | None] = mapped_column(Text)
     tier: Mapped[str] = mapped_column(Text, server_default=text("'free'"))
+    locale: Mapped[str] = mapped_column(Text, server_default=text("'bg'"))
+    timezone: Mapped[str] = mapped_column(Text, server_default=text("'Europe/Sofia'"))
+    daily_new_limit: Mapped[int] = mapped_column(SmallInteger, server_default=text("10"))
+    daily_review_limit: Mapped[int] = mapped_column(SmallInteger, server_default=text("100"))
     created_at: Mapped[datetime] = mapped_column(
         DateTime(timezone=True), server_default=text("now()")
     )
