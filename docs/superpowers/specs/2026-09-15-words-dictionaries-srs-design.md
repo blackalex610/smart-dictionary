@@ -32,13 +32,13 @@ served by the FastAPI backend instead of directly from Supabase.
   No `services/` package exists yet. `backend/tests/integration/` already has
   repo-level tests and RLS tests for dictionaries/words to build on.
 - **Database**: migrations `0001`-`0006` are applied: baseline, `dictionaries`
-  + `words.dictionary_id` (expand-only, `folder` still written by the live
-  frontend via a sync trigger), `word_reviews` + `review_log` + creation
-  trigger, `quiz_attempts`/`quiz_answers`, `ai_requests`/`ai_cache`/`import_jobs`,
-  `usage_daily` reshape. **Not yet migrated**: `profiles` has no `locale`,
-  `timezone`, `daily_new_limit`, or `daily_review_limit` columns — §E of the
-  plan specs these but no migration has written them yet, and the review
-  queue's caps and day-boundary math need them.
+  - `words.dictionary_id` (expand-only, `folder` still written by the live
+    frontend via a sync trigger), `word_reviews` + `review_log` + creation
+    trigger, `quiz_attempts`/`quiz_answers`, `ai_requests`/`ai_cache`/`import_jobs`,
+    `usage_daily` reshape. **Not yet migrated**: `profiles` has no `locale`,
+    `timezone`, `daily_new_limit`, or `daily_review_limit` columns — §E of the
+    plan specs these but no migration has written them yet, and the review
+    queue's caps and day-boundary math need them.
 - **Frontend**: fully pre-cutover. `src/lib/supabase/words.ts` etc. talk to
   Supabase directly. `WordsBackend` (`src/types/domain.ts:27`) is already the
   seam Phase 4 swaps an implementation into. `FlashcardsPage.tsx` does
@@ -257,7 +257,7 @@ src/pages/ReviewPage.tsx   NEW
   Postgres (existing `backend/tests/integration/conftest.py` pattern), each
   with an authz case (`NOT_FOUND` for another user's resource) alongside the
   happy path — following `test_dictionaries_repository.py`'s existing shape.
-- `domain/srs.ts`: unit tests against the *same* fixture table as
+- `domain/srs.ts`: unit tests against the _same_ fixture table as
   `services/srs.py` (kept as a shared JSON/data file so the two can't drift).
 - `useReviewQueue`, `ReviewPage`: Vitest + Testing Library, MSW for the API layer.
 - No new E2E flow is required by this work order; the existing Playwright

@@ -26,10 +26,12 @@
 ## Task 1: Migration — `profiles` review-scheduling columns
 
 **Files:**
+
 - Create: `backend/alembic/versions/0007_profile_review_settings.py`
 - Test: `backend/tests/integration/test_profiles_migration.py`
 
 **Interfaces:**
+
 - Produces: `profiles.locale` (text, default `'bg'`), `profiles.timezone` (text, default `'Europe/Sofia'`), `profiles.daily_new_limit` (smallint, default `10`, check 0-100), `profiles.daily_review_limit` (smallint, default `100`, check 10-500). No model change needed yet — `Profile` (`backend/app/models/profile.py`) gets the new columns in Task 10 when the dictionaries service needs them; this task is DB-only plus a migration test.
 
 - [ ] **Step 1: Write the failing migration test**
@@ -178,10 +180,12 @@ git commit -m "feat: add profiles.locale/timezone/daily_new_limit/daily_review_l
 ## Task 2: Pagination cursor helpers
 
 **Files:**
+
 - Create: `backend/app/pagination.py`
 - Test: `backend/tests/unit/test_pagination.py`
 
 **Interfaces:**
+
 - Produces: `encode_cursor(value: str, id_: str) -> str`, `decode_cursor(cursor: str) -> Cursor` where `Cursor` is a frozen dataclass with `.value: str` and `.id: str`. `decode_cursor` raises `ValueError` on malformed input (callers translate this to `ValidationFailedError`).
 
 - [ ] **Step 1: Write the failing test**
@@ -277,10 +281,12 @@ git commit -m "feat: add keyset pagination cursor helpers"
 ## Task 3: SRS scheduler — pure SM-2 (`services/srs.py`)
 
 **Files:**
+
 - Create: `backend/app/services/__init__.py`, `backend/app/services/srs.py`, `src/domain/srs-fixtures.json` (shared with `src/domain/srs.test.ts` in Task 16 — kept under `src/` rather than `docs/` so it stays inside `tsconfig.json`'s `include`, which only covers `src`)
 - Test: `backend/tests/unit/test_srs.py`
 
 **Interfaces:**
+
 - Produces: `ReviewState` (frozen dataclass: `word_id: str`, `state: Literal["new","learning","relearning","review"]`, `step: int`, `ease: Decimal`, `interval: int`), and `next_state(state: ReviewState, rating: int, now: datetime) -> tuple[ReviewState, datetime]` returning the new state plus the computed `due_at`. Constants `AGAIN, HARD, GOOD, EASY = 1, 2, 3, 4` are re-exported for callers (the reviews router and repository use these instead of magic numbers).
 - Consumes: nothing (pure, stdlib only).
 
@@ -505,7 +511,7 @@ def next_state(state: ReviewState, rating: int, now: datetime) -> tuple[ReviewSt
 - [ ] **Step 4: Run tests to verify they pass**
 
 Run: `cd backend && pytest tests/unit/test_srs.py -v`
-Expected: PASS (14 tests). If the `GOOD`/`EASY`/`HARD` interval assertions fail by ±1 due to rounding order, adjust the *test's* expected range, not the multiplier table — the multiplier values themselves are fixed by the spec.
+Expected: PASS (14 tests). If the `GOOD`/`EASY`/`HARD` interval assertions fail by ±1 due to rounding order, adjust the _test's_ expected range, not the multiplier table — the multiplier values themselves are fixed by the spec.
 
 - [ ] **Step 4a: Write the shared cross-language fixture and a parity test against it**
 
@@ -514,14 +520,68 @@ This JSON file is read by both this test (below) and `src/domain/srs.test.ts` (T
 ```json
 // src/domain/srs-fixtures.json
 [
-  { "description": "new+again", "input": { "state": "new", "step": 0, "ease": "2.50", "interval": 0 }, "rating": 1, "expectState": "learning", "expectStep": 0, "expectDueMinutes": 1 },
-  { "description": "new+good", "input": { "state": "new", "step": 0, "ease": "2.50", "interval": 0 }, "rating": 3, "expectState": "learning", "expectStep": 1, "expectDueMinutes": 10 },
-  { "description": "learning_step1+good_graduates", "input": { "state": "learning", "step": 1, "ease": "2.50", "interval": 0 }, "rating": 3, "expectState": "review", "expectStep": 0, "expectInterval": 1, "expectDueDays": 1 },
-  { "description": "new+easy", "input": { "state": "new", "step": 0, "ease": "2.50", "interval": 0 }, "rating": 4, "expectState": "review", "expectStep": 0, "expectInterval": 4, "expectDueDays": 4 },
-  { "description": "review+again_lapses", "input": { "state": "review", "step": 0, "ease": "2.50", "interval": 10 }, "rating": 1, "expectState": "relearning", "expectStep": 0, "expectEase": "2.30", "expectInterval": 1, "expectDueDays": 1 },
-  { "description": "review+hard_ease", "input": { "state": "review", "step": 0, "ease": "2.50", "interval": 10 }, "rating": 2, "expectEase": "2.35" },
-  { "description": "review+good_ease_unchanged", "input": { "state": "review", "step": 0, "ease": "2.50", "interval": 10 }, "rating": 3, "expectEase": "2.50" },
-  { "description": "review+easy_ease", "input": { "state": "review", "step": 0, "ease": "2.50", "interval": 10 }, "rating": 4, "expectEase": "2.60" }
+  {
+    "description": "new+again",
+    "input": { "state": "new", "step": 0, "ease": "2.50", "interval": 0 },
+    "rating": 1,
+    "expectState": "learning",
+    "expectStep": 0,
+    "expectDueMinutes": 1
+  },
+  {
+    "description": "new+good",
+    "input": { "state": "new", "step": 0, "ease": "2.50", "interval": 0 },
+    "rating": 3,
+    "expectState": "learning",
+    "expectStep": 1,
+    "expectDueMinutes": 10
+  },
+  {
+    "description": "learning_step1+good_graduates",
+    "input": { "state": "learning", "step": 1, "ease": "2.50", "interval": 0 },
+    "rating": 3,
+    "expectState": "review",
+    "expectStep": 0,
+    "expectInterval": 1,
+    "expectDueDays": 1
+  },
+  {
+    "description": "new+easy",
+    "input": { "state": "new", "step": 0, "ease": "2.50", "interval": 0 },
+    "rating": 4,
+    "expectState": "review",
+    "expectStep": 0,
+    "expectInterval": 4,
+    "expectDueDays": 4
+  },
+  {
+    "description": "review+again_lapses",
+    "input": { "state": "review", "step": 0, "ease": "2.50", "interval": 10 },
+    "rating": 1,
+    "expectState": "relearning",
+    "expectStep": 0,
+    "expectEase": "2.30",
+    "expectInterval": 1,
+    "expectDueDays": 1
+  },
+  {
+    "description": "review+hard_ease",
+    "input": { "state": "review", "step": 0, "ease": "2.50", "interval": 10 },
+    "rating": 2,
+    "expectEase": "2.35"
+  },
+  {
+    "description": "review+good_ease_unchanged",
+    "input": { "state": "review", "step": 0, "ease": "2.50", "interval": 10 },
+    "rating": 3,
+    "expectEase": "2.50"
+  },
+  {
+    "description": "review+easy_ease",
+    "input": { "state": "review", "step": 0, "ease": "2.50", "interval": 10 },
+    "rating": 4,
+    "expectEase": "2.60"
+  }
 ]
 ```
 
@@ -574,11 +634,13 @@ git commit -m "feat: add pure SM-2 scheduler (services/srs.py)"
 ## Task 4: New error types and shared constants
 
 **Files:**
+
 - Modify: `backend/app/errors.py`
 - Create: `backend/app/constants.py`
 - Test: `backend/tests/unit/test_errors.py`
 
 **Interfaces:**
+
 - Produces: `DuplicateWordError` (409, `DUPLICATE_WORD`), `WordLimitReachedError` (409, `WORD_LIMIT_REACHED`), `ValidationFailedError` reused as-is. `app.constants.MAX_WORDS_PER_USER = 5000` (v2-plan.md §F's own error example: "This account is limited to 5000 words").
 
 - [ ] **Step 1: Write the failing test**
@@ -655,10 +717,12 @@ git commit -m "feat: add DuplicateWordError/WordLimitReachedError and shared con
 ## Task 5: Session commit-on-success lifecycle
 
 **Files:**
+
 - Modify: `backend/app/deps.py`
 - Test: `backend/tests/integration/test_session_lifecycle.py`
 
 **Interfaces:**
+
 - Produces: `get_session` now commits on clean exit and rolls back on exception. This is a prerequisite for every write endpoint in this plan (Task 7 onward) — today's only endpoint, `GET /me`, is read-only, so this gap has never mattered until now.
 
 - [ ] **Step 1: Write the failing test**
@@ -758,12 +822,14 @@ git commit -m "fix: commit the request session on success, roll back on exceptio
 ## Task 6: Reviews repository (`word_reviews` + `review_log`)
 
 **Files:**
+
 - Create: `backend/app/repositories/reviews.py`
 - Modify: `backend/app/repositories/__init__.py`
 - Modify: `backend/tests/factories.py` (add `create_word_review_state` helper)
 - Test: `backend/tests/integration/test_reviews_repository.py`
 
 **Interfaces:**
+
 - Consumes: `app.services.srs.ReviewState`, `app.models.WordReview`, `app.models.ReviewLog`.
 - Produces: `ReviewRepository(session)` with:
   - `async def get_state(word_id: UUID, user_id: UUID) -> ReviewState | None`
@@ -1113,11 +1179,13 @@ git commit -m "feat: add ReviewRepository (queue, apply_rating, forecast)"
 ## Task 7: Local-day helper + usage-daily repository
 
 **Files:**
+
 - Create: `backend/app/services/daytime.py`, `backend/app/repositories/usage.py`
 - Modify: `backend/app/repositories/__init__.py`
 - Test: `backend/tests/unit/test_daytime.py`, `backend/tests/integration/test_usage_repository.py`
 
 **Interfaces:**
+
 - Produces: `local_today(tz_name: str, now: datetime) -> date` (pure). `UsageRepository(session)` with `async def get_reviews_done(user_id: UUID, usage_date: date) -> int` and `async def increment_reviews_done(user_id: UUID, usage_date: date) -> None`.
 - Consumes: `app.models.UsageDaily`.
 
@@ -1279,9 +1347,11 @@ git commit -m "feat: add local_today helper and UsageRepository"
 ## Task 8: Authenticated API test client fixture
 
 **Files:**
+
 - Modify: `backend/tests/integration/conftest.py`
 
 **Interfaces:**
+
 - Produces: an `api_client` pytest fixture — a factory `(user_id: uuid.UUID, *, email: str | None = "test@example.com") -> httpx.AsyncClient` — usable by every router integration test from Task 9 onward. Overrides `get_session` to reuse the test's own rolled-back `db_session` and `get_current_user` to return a fixed `VerifiedUser`, so no real JWT or lifespan startup is needed.
 
 No production code changes in this task — it's test infrastructure, proven by a smoke test against the one endpoint that already exists (`GET /me`).
@@ -1381,10 +1451,12 @@ git commit -m "test: add authenticated api_client fixture for endpoint tests"
 ## Task 9: Reviews router — `GET /queue`, `POST /reviews`, `GET /forecast`
 
 **Files:**
+
 - Create: `backend/app/schemas/reviews.py`, `backend/app/api/v1/reviews.py`
 - Test: `backend/tests/integration/test_reviews_api.py`
 
 **Interfaces:**
+
 - Consumes: `ReviewRepository`, `UsageRepository`, `local_today`, `app.models.Profile`, the `api_client` fixture from Task 8.
 - Produces: `router` (an `APIRouter`) mounted at `/reviews` in Task 12's `api/v1/router.py`. Daily caps: `review_cap = max(0, profile.daily_review_limit - reviews_done_today)`, `new_cap = profile.daily_new_limit` (new-word exposure isn't reduced by `reviews_done` — that counter is the total-volume cap, `daily_new_limit` is a separate "don't overwhelm with new material" cap), both additionally clamped by the request's `limit` query param.
 
@@ -1744,10 +1816,12 @@ git commit -m "feat: add /api/v1/reviews queue, submit and forecast endpoints"
 ## Task 10: Words repository — pagination, search, filters, bulk create, move
 
 **Files:**
+
 - Modify: `backend/app/repositories/words.py`
 - Test: `backend/tests/integration/test_words_repository.py` (extend the existing file)
 
 **Interfaces:**
+
 - Produces (added to the existing `WordRepository`):
   - `async def list_page(dictionary_id, *, cursor=None, limit=50, q=None, part_of_speech=None, difficulty=None, state=None, sort="created") -> tuple[list[Word], str | None, bool]` — `sort` is `"created"` (default, keyset on `created_at desc, id desc`) or `"alpha"` (keyset on `lower(word) asc, id asc`). Due-ordering deliberately isn't a sort option here — that's what `/reviews/queue` is for; duplicating it in the words list would be dead code with no caller.
   - `async def bulk_create(dictionary_id, user_id, rows: list[dict]) -> list[dict]` — each result dict is `{"word": Word | None, "error": str | None}`, one per input row, in order. A duplicate in row 3 doesn't abort rows 1-2 or 4+ (each row runs in its own `SAVEPOINT`).
@@ -2005,11 +2079,13 @@ git commit -m "feat: add words list_page pagination, bulk_create and move"
 ## Task 11: Words service + `/api/v1/words` and `/api/v1/dictionaries/{id}/words` router
 
 **Files:**
+
 - Modify: `backend/app/repositories/words.py` (add `update`, `count_for_user`)
 - Create: `backend/app/services/words.py`, `backend/app/schemas/words.py`, `backend/app/api/v1/words.py`
 - Test: `backend/tests/integration/test_words_repository.py` (extend), `backend/tests/integration/test_words_api.py`
 
 **Interfaces:**
+
 - Produces: `WordRepository.update(word_id, user_id, **fields) -> Word | None`, `WordRepository.count_for_user(user_id) -> int`. `WordService(session)` with `async def create_word(dictionary_id, user_id, **fields) -> Word` (raises `WordLimitReachedError` / `DuplicateWordError`) and `async def update_word(word_id, user_id, **fields) -> Word | None` (raises `DuplicateWordError`). `router` mounted in Task 13.
 - Consumes: `DictionaryRepository.get` (Task 12 hasn't extended it yet, but `get`/`create` already exist from the current codebase) to check dictionary ownership before creating/listing words in it.
 
@@ -2574,11 +2650,13 @@ git commit -m "feat: add words service and /api/v1/words + dictionary-scoped wor
 ## Task 12: Dictionaries service + `/api/v1/dictionaries` router
 
 **Files:**
+
 - Modify: `backend/app/repositories/dictionaries.py`
 - Create: `backend/app/services/dictionaries.py`, `backend/app/schemas/dictionaries.py`, `backend/app/api/v1/dictionaries.py`
 - Test: `backend/tests/integration/test_dictionaries_repository.py` (extend), `backend/tests/integration/test_dictionaries_api.py`
 
 **Interfaces:**
+
 - Produces: `DictionaryRepository.update(dictionary_id, user_id, **fields) -> Dictionary | None`, `.set_default(dictionary_id, user_id) -> Dictionary | None` (unsets any existing default first, in the same transaction), `.counts_for(dictionary_id) -> tuple[int, int]` (word_count, due_count). `DictionaryRepository.create` gains an `is_default: bool = False` keyword. `DictionaryService(session)` with `create_dictionary`/`update_dictionary`, translating the existing `unique(user_id, lower(name))` constraint into `ValidationFailedError` with a `DUPLICATE_NAME` field error (there's no dedicated top-level error code for this in v2-plan.md §F's list, so it uses the existing `errors` array mechanism the RFC 9457 format already supports).
 
 - [ ] **Step 1: Write the failing repository tests**
@@ -3090,10 +3168,12 @@ git commit -m "feat: add dictionaries service and /api/v1/dictionaries endpoints
 ## Task 13: Wire the new routers into `/api/v1`
 
 **Files:**
+
 - Modify: `backend/app/api/v1/router.py`
 - Test: `backend/tests/integration/test_router_wiring.py`
 
 **Interfaces:**
+
 - Produces: `/api/v1/dictionaries*`, `/api/v1/dictionaries/*/words*`, `/api/v1/words*`, `/api/v1/reviews*` all reachable through the same `router` that `app/main.py` already mounts — no change to `main.py` needed.
 
 - [ ] **Step 1: Write the failing smoke test**
@@ -3182,11 +3262,13 @@ git commit -m "feat: mount dictionaries, words and reviews routers"
 ## Task 14: Frontend API client (`src/api/client.ts` + `src/api/errors.ts`)
 
 **Files:**
+
 - Create: `src/api/client.ts`, `src/api/errors.ts`
 - Modify: `src/i18n/locales/en.ts`, `src/i18n/locales/bg.ts`
 - Test: `src/api/client.test.ts`, `src/api/errors.test.ts`
 
 **Interfaces:**
+
 - Produces: `class AppError extends Error { code: string; status: number; detail: string; errors?: {field: string; code: string}[] }`; `apiFetch<T>(path: string, init?: RequestInit): Promise<T>` — attaches `Authorization: Bearer <token>` from the current Supabase session, a random `X-Request-ID`, a 10s timeout, and throws `AppError` for both HTTP error responses and network/timeout failures. `errorMessageKey(error: AppError): TranslationKey` maps `error.code` to a translation key, defaulting to `'err-generic'`.
 - Consumes: `supabase.auth.getSession()` from `src/lib/supabase/client.ts` (kept per the design spec — Supabase remains the auth SDK).
 
@@ -3264,7 +3346,9 @@ describe('apiFetch', () => {
   })
 
   it('returns undefined for a 204 response', async () => {
-    server.use(http.delete(`${BASE_URL}/api/v1/words/1`, () => new HttpResponse(null, { status: 204 })))
+    server.use(
+      http.delete(`${BASE_URL}/api/v1/words/1`, () => new HttpResponse(null, { status: 204 })),
+    )
     await expect(apiFetch('/api/v1/words/1', { method: 'DELETE' })).resolves.toBeUndefined()
   })
 
@@ -3375,7 +3459,9 @@ describe('errorMessageKey', () => {
   it('maps known codes to their translation key', () => {
     expect(errorMessageKey(new AppError('NOT_FOUND', 404, 'x'))).toBe('err-not-found')
     expect(errorMessageKey(new AppError('DUPLICATE_WORD', 409, 'x'))).toBe('err-duplicate-word')
-    expect(errorMessageKey(new AppError('WORD_LIMIT_REACHED', 409, 'x'))).toBe('err-word-limit-reached')
+    expect(errorMessageKey(new AppError('WORD_LIMIT_REACHED', 409, 'x'))).toBe(
+      'err-word-limit-reached',
+    )
   })
 
   it('falls back to a generic key for an unknown code', () => {
@@ -3455,10 +3541,12 @@ git commit -m "feat: add typed API client with problem+json error mapping"
 ## Task 15: Typed API modules — `dictionaries.ts`, `words.ts`, `reviews.ts`
 
 **Files:**
+
 - Create: `src/api/dictionaries.ts`, `src/api/words.ts`, `src/api/reviews.ts`
 - Test: `src/api/dictionaries.test.ts`, `src/api/words.test.ts`, `src/api/reviews.test.ts`
 
 **Interfaces:**
+
 - Consumes: `apiFetch` from Task 14.
 - Produces: `DictionaryDto`, `listDictionaries/createDictionary/updateDictionary/deleteDictionary`; `WordDto`, `NewWordDto`, `WordListResponse`, `listWords/createWord/bulkCreateWords/getWord/updateWord/deleteWord/moveWord`; `ReviewQueueItemDto`, `SubmitReviewResponseDto`, `getReviewQueue/submitReview/getReviewForecast`. These are hand-written to match the Pydantic schemas from Tasks 9/11/12 exactly (no `openapi-typescript` codegen pipeline — that's CI infrastructure with no bearing on this feature, deliberately out of scope here).
 
@@ -3469,10 +3557,17 @@ git commit -m "feat: add typed API client with problem+json error mapping"
 import { HttpResponse, http } from 'msw'
 import { setupServer } from 'msw/node'
 import { afterAll, afterEach, beforeAll, describe, expect, it, vi } from 'vitest'
-import { createDictionary, deleteDictionary, listDictionaries, updateDictionary } from './dictionaries'
+import {
+  createDictionary,
+  deleteDictionary,
+  listDictionaries,
+  updateDictionary,
+} from './dictionaries'
 
 vi.mock('@/lib/supabase/client', () => ({
-  supabase: { auth: { getSession: vi.fn().mockResolvedValue({ data: { session: { access_token: 't' } } }) } },
+  supabase: {
+    auth: { getSession: vi.fn().mockResolvedValue({ data: { session: { access_token: 't' } } }) },
+  },
 }))
 
 const BASE_URL = 'http://localhost:8000'
@@ -3517,7 +3612,12 @@ describe('dictionaries api', () => {
   })
 
   it('deleteDictionary DELETEs the resource', async () => {
-    server.use(http.delete(`${BASE_URL}/api/v1/dictionaries/1`, () => new HttpResponse(null, { status: 204 })))
+    server.use(
+      http.delete(
+        `${BASE_URL}/api/v1/dictionaries/1`,
+        () => new HttpResponse(null, { status: 204 }),
+      ),
+    )
     await expect(deleteDictionary('1')).resolves.toBeUndefined()
   })
 })
@@ -3531,7 +3631,9 @@ import { afterAll, afterEach, beforeAll, describe, expect, it, vi } from 'vitest
 import { bulkCreateWords, createWord, deleteWord, listWords, moveWord } from './words'
 
 vi.mock('@/lib/supabase/client', () => ({
-  supabase: { auth: { getSession: vi.fn().mockResolvedValue({ data: { session: { access_token: 't' } } }) } },
+  supabase: {
+    auth: { getSession: vi.fn().mockResolvedValue({ data: { session: { access_token: 't' } } }) },
+  },
 }))
 
 const BASE_URL = 'http://localhost:8000'
@@ -3579,7 +3681,9 @@ describe('words api', () => {
   })
 
   it('deleteWord DELETEs by id', async () => {
-    server.use(http.delete(`${BASE_URL}/api/v1/words/w1`, () => new HttpResponse(null, { status: 204 })))
+    server.use(
+      http.delete(`${BASE_URL}/api/v1/words/w1`, () => new HttpResponse(null, { status: 204 })),
+    )
     await expect(deleteWord('w1')).resolves.toBeUndefined()
   })
 
@@ -3605,7 +3709,9 @@ import { afterAll, afterEach, beforeAll, describe, expect, it, vi } from 'vitest
 import { getReviewForecast, getReviewQueue, submitReview } from './reviews'
 
 vi.mock('@/lib/supabase/client', () => ({
-  supabase: { auth: { getSession: vi.fn().mockResolvedValue({ data: { session: { access_token: 't' } } }) } },
+  supabase: {
+    auth: { getSession: vi.fn().mockResolvedValue({ data: { session: { access_token: 't' } } }) },
+  },
 }))
 
 const BASE_URL = 'http://localhost:8000'
@@ -3633,7 +3739,13 @@ describe('reviews api', () => {
       http.post(`${BASE_URL}/api/v1/reviews`, async ({ request }) => {
         body = await request.json()
         return HttpResponse.json(
-          { word_id: 'w1', state: 'learning', ease_factor: '2.50', interval_days: 0, due_at: '2026-09-16T00:00:00Z' },
+          {
+            word_id: 'w1',
+            state: 'learning',
+            ease_factor: '2.50',
+            interval_days: 0,
+            due_at: '2026-09-16T00:00:00Z',
+          },
           { status: 201 },
         )
       }),
@@ -3759,7 +3871,10 @@ function toQueryString(params: Record<string, string | number | undefined>): str
   return qs ? `?${qs}` : ''
 }
 
-export function listWords(dictionaryId: string, params: ListWordsParams = {}): Promise<WordListResponse> {
+export function listWords(
+  dictionaryId: string,
+  params: ListWordsParams = {},
+): Promise<WordListResponse> {
   return apiFetch(`/api/v1/dictionaries/${dictionaryId}/words${toQueryString(params)}`)
 }
 
@@ -3877,10 +3992,12 @@ git commit -m "feat: add typed dictionaries/words/reviews API modules"
 ## Task 16: Client-side interval preview (`domain/srs.ts`)
 
 **Files:**
+
 - Create: `src/domain/srs.ts`
 - Test: `src/domain/srs.test.ts`
 
 **Interfaces:**
+
 - Consumes: `src/domain/srs-fixtures.json` (written in Task 3).
 - Produces: `AGAIN=1, HARD=2, GOOD=3, EASY=4`; `ReviewState { wordId, state, step, ease, interval }`; `previewNextState(state: ReviewState, rating: 1|2|3|4, now: Date): { state: ReviewState; dueAt: Date }`; `formatIntervalPreview(dueAt: Date, now: Date): string` (e.g. `"10m"`, `"1d"`, `"3mo"`) for the four rating buttons in `ReviewPage` (Task 18).
 - This mirrors `services/srs.py`'s state/ease transitions exactly but does **not** need to reproduce Python's fuzz byte-for-byte — it's a preview shown before the user rates, the server's actual write is the source of truth. The two fuzz implementations are each tested for their own determinism, not for cross-language equality.
@@ -3891,7 +4008,15 @@ git commit -m "feat: add typed dictionaries/words/reviews API modules"
 // src/domain/srs.test.ts
 import { describe, expect, it } from 'vitest'
 import fixtures from './srs-fixtures.json'
-import { AGAIN, EASY, GOOD, HARD, previewNextState, formatIntervalPreview, type ReviewState } from './srs'
+import {
+  AGAIN,
+  EASY,
+  GOOD,
+  HARD,
+  previewNextState,
+  formatIntervalPreview,
+  type ReviewState,
+} from './srs'
 
 const WORD_ID = 'word-1'
 const NOW = new Date('2026-09-15T10:00:00Z')
@@ -3923,7 +4048,8 @@ describe('previewNextState — shared cross-language fixture', () => {
       if (fixture.expectState) expect(next.state).toBe(fixture.expectState)
       if (fixture.expectStep !== undefined) expect(next.step).toBe(fixture.expectStep)
       if (fixture.expectInterval !== undefined) expect(next.interval).toBe(fixture.expectInterval)
-      if (fixture.expectEase !== undefined) expect(next.ease).toBeCloseTo(Number(fixture.expectEase), 2)
+      if (fixture.expectEase !== undefined)
+        expect(next.ease).toBeCloseTo(Number(fixture.expectEase), 2)
       if (fixture.expectDueMinutes !== undefined) {
         expect(dueAt.getTime()).toBe(NOW.getTime() + fixture.expectDueMinutes * 60_000)
       }
@@ -3936,14 +4062,26 @@ describe('previewNextState — shared cross-language fixture', () => {
 
 describe('previewNextState — fuzz', () => {
   it('is deterministic for the same word id', () => {
-    const state: ReviewState = { wordId: WORD_ID, state: 'review', step: 0, ease: 2.5, interval: 10 }
+    const state: ReviewState = {
+      wordId: WORD_ID,
+      state: 'review',
+      step: 0,
+      ease: 2.5,
+      interval: 10,
+    }
     const first = previewNextState(state, GOOD, NOW)
     const second = previewNextState(state, GOOD, NOW)
     expect(first.state.interval).toBe(second.state.interval)
   })
 
   it('keeps the fuzzed interval within +/-5% of the unfuzzed value', () => {
-    const state: ReviewState = { wordId: WORD_ID, state: 'review', step: 0, ease: 2.5, interval: 10 }
+    const state: ReviewState = {
+      wordId: WORD_ID,
+      state: 'review',
+      step: 0,
+      ease: 2.5,
+      interval: 10,
+    }
     const { state: next } = previewNextState(state, GOOD, NOW)
     // unfuzzed: round(10 * 2.5) == 25
     expect(next.interval).toBeGreaterThanOrEqual(24)
@@ -4089,11 +4227,13 @@ git commit -m "feat: add client-side SRS interval preview (domain/srs.ts)"
 ## Task 17: `httpWords` adapter and `useWordsBackend()` cutover
 
 **Files:**
+
 - Create: `src/lib/http/words.ts`
 - Modify: `src/hooks/useWords.ts`
 - Test: `src/lib/http/words.test.ts`
 
 **Interfaces:**
+
 - Consumes: `listDictionaries`/`createDictionary` (Task 15), `listWords`/`createWord`/`updateWord`/`deleteWord`/`moveWord`/`getWord`/`bulkCreateWords` (Task 15), `DEFAULT_FOLDER` from `src/lib/folders.ts`.
 - Produces: `httpWords: WordsBackend` — a third implementation of the existing `src/types/domain.ts:27` interface, bridging the frontend's `folder: string` concept onto the backend's `dictionary_id`: a folder name is resolved to (or creates) a same-named dictionary, exactly mirroring what the `sync_word_dictionary` DB trigger already does for legacy inserts (migration `0002`). `WordCard`/`WordList`/`AddWordForm`/`SearchBar`/`FolderSidebar` need zero changes because of this.
 - `replaceAll` note: the only real caller (`SettingsPage.tsx:88`, "clear my dictionary") always passes `[]`. The implementation below handles the general contract (diff by id, delete removed, create the rest) correctly for that case; it cannot preserve client-supplied ids for genuinely new words since the backend generates ids server-side — no current caller relies on that, so this isn't a regression.
@@ -4108,7 +4248,9 @@ import { afterAll, afterEach, beforeAll, describe, expect, it, vi } from 'vitest
 import { httpWords } from './words'
 
 vi.mock('@/lib/supabase/client', () => ({
-  supabase: { auth: { getSession: vi.fn().mockResolvedValue({ data: { session: { access_token: 't' } } }) } },
+  supabase: {
+    auth: { getSession: vi.fn().mockResolvedValue({ data: { session: { access_token: 't' } } }) },
+  },
 }))
 
 const BASE_URL = 'http://localhost:8000'
@@ -4118,7 +4260,17 @@ afterEach(() => server.resetHandlers())
 afterAll(() => server.close())
 
 const DICTIONARIES = [
-  { id: 'd1', name: 'General', word_count: 1, due_count: 0, is_default: true, language_code: null, description: null, created_at: '2026-01-01T00:00:00Z', updated_at: '2026-01-01T00:00:00Z' },
+  {
+    id: 'd1',
+    name: 'General',
+    word_count: 1,
+    due_count: 0,
+    is_default: true,
+    language_code: null,
+    description: null,
+    created_at: '2026-01-01T00:00:00Z',
+    updated_at: '2026-01-01T00:00:00Z',
+  },
 ]
 
 function wordDto(overrides: Partial<Record<string, unknown>> = {}) {
@@ -4159,9 +4311,17 @@ describe('httpWords.list', () => {
       http.get(`${BASE_URL}/api/v1/dictionaries/d1/words`, () => {
         calls += 1
         if (calls === 1) {
-          return HttpResponse.json({ items: [wordDto({ id: 'w1' })], next_cursor: 'abc', has_more: true })
+          return HttpResponse.json({
+            items: [wordDto({ id: 'w1' })],
+            next_cursor: 'abc',
+            has_more: true,
+          })
         }
-        return HttpResponse.json({ items: [wordDto({ id: 'w2' })], next_cursor: null, has_more: false })
+        return HttpResponse.json({
+          items: [wordDto({ id: 'w2' })],
+          next_cursor: null,
+          has_more: false,
+        })
       }),
     )
 
@@ -4177,14 +4337,32 @@ describe('httpWords.create', () => {
       http.get(`${BASE_URL}/api/v1/dictionaries`, () => HttpResponse.json({ items: [] })),
       http.post(`${BASE_URL}/api/v1/dictionaries`, async ({ request }) => {
         createdDictionaryBody = await request.json()
-        return HttpResponse.json({ id: 'd2', name: 'New Folder', word_count: 0, due_count: 0, is_default: false, language_code: null, description: null, created_at: '', updated_at: '' }, { status: 201 })
+        return HttpResponse.json(
+          {
+            id: 'd2',
+            name: 'New Folder',
+            word_count: 0,
+            due_count: 0,
+            is_default: false,
+            language_code: null,
+            description: null,
+            created_at: '',
+            updated_at: '',
+          },
+          { status: 201 },
+        )
       }),
       http.post(`${BASE_URL}/api/v1/dictionaries/d2/words`, () =>
         HttpResponse.json(wordDto({ dictionary_id: 'd2' }), { status: 201 }),
       ),
     )
 
-    const word = await httpWords.create({ word: 'cat', definition: 'an animal', partOfSpeech: 'noun', folder: 'New Folder' })
+    const word = await httpWords.create({
+      word: 'cat',
+      definition: 'an animal',
+      partOfSpeech: 'noun',
+      folder: 'New Folder',
+    })
 
     expect(createdDictionaryBody).toEqual({ name: 'New Folder' })
     expect(word.folder).toBe('New Folder')
@@ -4198,10 +4376,17 @@ describe('httpWords.create', () => {
         dictionaryPostCalled = true
         return HttpResponse.json({}, { status: 201 })
       }),
-      http.post(`${BASE_URL}/api/v1/dictionaries/d1/words`, () => HttpResponse.json(wordDto(), { status: 201 })),
+      http.post(`${BASE_URL}/api/v1/dictionaries/d1/words`, () =>
+        HttpResponse.json(wordDto(), { status: 201 }),
+      ),
     )
 
-    await httpWords.create({ word: 'cat', definition: 'an animal', partOfSpeech: 'noun', folder: 'general' })
+    await httpWords.create({
+      word: 'cat',
+      definition: 'an animal',
+      partOfSpeech: 'noun',
+      folder: 'general',
+    })
     expect(dictionaryPostCalled).toBe(false)
   })
 })
@@ -4211,7 +4396,22 @@ describe('httpWords.update', () => {
     let moveBody: unknown
     server.use(
       http.get(`${BASE_URL}/api/v1/dictionaries`, () =>
-        HttpResponse.json({ items: [...DICTIONARIES, { id: 'd2', name: 'Other', word_count: 0, due_count: 0, is_default: false, language_code: null, description: null, created_at: '', updated_at: '' }] }),
+        HttpResponse.json({
+          items: [
+            ...DICTIONARIES,
+            {
+              id: 'd2',
+              name: 'Other',
+              word_count: 0,
+              due_count: 0,
+              is_default: false,
+              language_code: null,
+              description: null,
+              created_at: '',
+              updated_at: '',
+            },
+          ],
+        }),
       ),
       http.post(`${BASE_URL}/api/v1/words/w1:move`, async ({ request }) => {
         moveBody = await request.json()
@@ -4243,7 +4443,9 @@ describe('httpWords.update', () => {
 
 describe('httpWords.remove', () => {
   it('DELETEs the word', async () => {
-    server.use(http.delete(`${BASE_URL}/api/v1/words/w1`, () => new HttpResponse(null, { status: 204 })))
+    server.use(
+      http.delete(`${BASE_URL}/api/v1/words/w1`, () => new HttpResponse(null, { status: 204 })),
+    )
     await expect(httpWords.remove('w1')).resolves.toBeUndefined()
   })
 })
@@ -4254,7 +4456,11 @@ describe('httpWords.replaceAll', () => {
     server.use(
       http.get(`${BASE_URL}/api/v1/dictionaries`, () => HttpResponse.json({ items: DICTIONARIES })),
       http.get(`${BASE_URL}/api/v1/dictionaries/d1/words`, () =>
-        HttpResponse.json({ items: [wordDto({ id: 'w1' }), wordDto({ id: 'w2' })], next_cursor: null, has_more: false }),
+        HttpResponse.json({
+          items: [wordDto({ id: 'w1' }), wordDto({ id: 'w2' })],
+          next_cursor: null,
+          has_more: false,
+        }),
       ),
       http.delete(`${BASE_URL}/api/v1/words/:id`, ({ params }) => {
         deleted.push(params.id as string)
@@ -4397,9 +4603,7 @@ export const httpWords: WordsBackend = {
   async replaceAll(words) {
     const existing = await httpWords.list()
     const keepIds = new Set(words.map((w) => w.id))
-    await Promise.all(
-      existing.filter((w) => !keepIds.has(w.id)).map((w) => apiDeleteWord(w.id)),
-    )
+    await Promise.all(existing.filter((w) => !keepIds.has(w.id)).map((w) => apiDeleteWord(w.id)))
 
     const existingIds = new Set(existing.map((w) => w.id))
     const toCreate = words.filter((w) => !existingIds.has(w.id))
@@ -4465,10 +4669,12 @@ git commit -m "feat: add httpWords adapter and cut useWordsBackend over to it"
 ## Task 18: `useReviewQueue` and `useSubmitReview` hooks
 
 **Files:**
+
 - Create: `src/hooks/useReviewQueue.ts`
 - Test: `src/hooks/useReviewQueue.test.ts`
 
 **Interfaces:**
+
 - Consumes: `getReviewQueue`, `submitReview` (Task 15), `useAuth` (existing).
 - Produces: `useReviewQueue(dictionaryId?: string)` — a TanStack Query hook returning `ReviewQueueItemDto[]`, enabled only when authenticated. `useSubmitReview(dictionaryId?: string)` — a mutation that, on success, optimistically removes the rated word from the cached queue and invalidates it.
 
@@ -4619,11 +4825,13 @@ git commit -m "feat: add useReviewQueue and useSubmitReview hooks"
 ## Task 19: `ReviewPage` component
 
 **Files:**
+
 - Create: `src/pages/ReviewPage.tsx`
 - Modify: `src/i18n/locales/en.ts`, `src/i18n/locales/bg.ts`, `src/index.css`
 - Test: `src/pages/ReviewPage.test.tsx`
 
 **Interfaces:**
+
 - Consumes: `useReviewQueue`/`useSubmitReview` (Task 18), `previewNextState`/`formatIntervalPreview`/`AGAIN`/`HARD`/`GOOD`/`EASY` (Task 16). Reads `?dictionary_id=` from the URL (set by `FlashcardsPage` in Task 20).
 - Produces: `ReviewPage` — full-viewport flip card (reusing the existing `.flip-card`/`.flip-scene` CSS from `FlashcardModal`), four rating buttons each showing `domain/srs.ts`'s interval preview, swipe left (again) / right (good), keyboard `1`-`4` to rate and `Space` to flip, an empty state once the queue is exhausted.
 
@@ -4631,11 +4839,11 @@ git commit -m "feat: add useReviewQueue and useSubmitReview hooks"
 
 ```css
 /* src/index.css — inside the existing `.flip-card` rule's @layer components block, after .flip-card.is-flipped */
-  @media (prefers-reduced-motion: reduce) {
-    .flip-card {
-      transition: none;
-    }
+@media (prefers-reduced-motion: reduce) {
+  .flip-card {
+    transition: none;
   }
+}
 ```
 
 - [ ] **Step 2: Add the new translation keys**
@@ -4679,7 +4887,9 @@ import { I18nProvider } from '@/context/I18nContext'
 import { ReviewPage } from './ReviewPage'
 
 vi.mock('@/lib/supabase/client', () => ({
-  supabase: { auth: { getSession: vi.fn().mockResolvedValue({ data: { session: { access_token: 't' } } }) } },
+  supabase: {
+    auth: { getSession: vi.fn().mockResolvedValue({ data: { session: { access_token: 't' } } }) },
+  },
 }))
 vi.mock('@/context/AuthContext', () => ({
   useAuth: () => ({ state: { status: 'authenticated' }, scope: 'user-1' }),
@@ -4709,7 +4919,17 @@ describe('ReviewPage', () => {
     server.use(
       http.get(`${BASE_URL}/api/v1/reviews/queue`, () =>
         HttpResponse.json({
-          items: [{ word_id: 'w1', word: 'cat', definition: 'an animal', part_of_speech: 'noun', example: null, state: 'new', due_at: null }],
+          items: [
+            {
+              word_id: 'w1',
+              word: 'cat',
+              definition: 'an animal',
+              part_of_speech: 'noun',
+              example: null,
+              state: 'new',
+              due_at: null,
+            },
+          ],
         }),
       ),
     )
@@ -4726,15 +4946,37 @@ describe('ReviewPage', () => {
       http.get(`${BASE_URL}/api/v1/reviews/queue`, () =>
         HttpResponse.json({
           items: [
-            { word_id: 'w1', word: 'cat', definition: 'an animal', part_of_speech: 'noun', example: null, state: 'new', due_at: null },
-            { word_id: 'w2', word: 'dog', definition: 'a pet', part_of_speech: 'noun', example: null, state: 'new', due_at: null },
+            {
+              word_id: 'w1',
+              word: 'cat',
+              definition: 'an animal',
+              part_of_speech: 'noun',
+              example: null,
+              state: 'new',
+              due_at: null,
+            },
+            {
+              word_id: 'w2',
+              word: 'dog',
+              definition: 'a pet',
+              part_of_speech: 'noun',
+              example: null,
+              state: 'new',
+              due_at: null,
+            },
           ],
         }),
       ),
       http.post(`${BASE_URL}/api/v1/reviews`, async ({ request }) => {
         submittedBody = await request.json()
         return HttpResponse.json(
-          { word_id: 'w1', state: 'learning', ease_factor: '2.50', interval_days: 0, due_at: '2026-09-16T00:00:00Z' },
+          {
+            word_id: 'w1',
+            state: 'learning',
+            ease_factor: '2.50',
+            interval_days: 0,
+            due_at: '2026-09-16T00:00:00Z',
+          },
           { status: 201 },
         )
       }),
@@ -4844,7 +5086,9 @@ export function ReviewPage() {
       interval: 0,
     }
     const now = new Date()
-    return RATING_BUTTONS.map(({ rating }) => formatIntervalPreview(previewNextState(state, rating, now).dueAt, now))
+    return RATING_BUTTONS.map(({ rating }) =>
+      formatIntervalPreview(previewNextState(state, rating, now).dueAt, now),
+    )
   }, [current])
 
   if (isLoading) {
@@ -4948,12 +5192,14 @@ git commit -m "feat: add ReviewPage with rating buttons, interval previews, swip
 ## Task 20: `FlashcardsPage` becomes the entry point into `ReviewPage`
 
 **Files:**
+
 - Create: `src/hooks/useDictionaries.ts`
 - Modify: `src/pages/FlashcardsPage.tsx`, `src/routes.tsx`, `src/i18n/locales/en.ts`, `src/i18n/locales/bg.ts`
 - Delete: `src/features/flashcards/FlashcardModal.tsx` (its only importer is `FlashcardsPage.tsx`, verified — `WordPicker.tsx` stays, it's also used by `TestsPage.tsx`)
 - Test: `src/pages/FlashcardsPage.test.tsx`
 
 **Interfaces:**
+
 - Produces: `useDictionaries()` — TanStack Query hook wrapping `listDictionaries()`. `FlashcardsPage` now renders one card per dictionary (showing its `due_count`) plus an "All words" option; clicking either navigates to `/app/review` (optionally with `?dictionary_id=`) instead of opening `FlashcardModal`. Route `review` added under `/app` in `routes.tsx`.
 
 - [ ] **Step 1: Write the failing tests**
@@ -4971,7 +5217,9 @@ import { I18nProvider } from '@/context/I18nContext'
 import { FlashcardsPage } from './FlashcardsPage'
 
 vi.mock('@/lib/supabase/client', () => ({
-  supabase: { auth: { getSession: vi.fn().mockResolvedValue({ data: { session: { access_token: 't' } } }) } },
+  supabase: {
+    auth: { getSession: vi.fn().mockResolvedValue({ data: { session: { access_token: 't' } } }) },
+  },
 }))
 vi.mock('@/context/AuthContext', () => ({
   useAuth: () => ({ state: { status: 'authenticated' }, scope: 'user-1' }),
@@ -5000,12 +5248,24 @@ function renderPage() {
 }
 
 const DICTIONARIES = [
-  { id: 'd1', name: 'IELTS', word_count: 10, due_count: 3, is_default: true, language_code: null, description: null, created_at: '', updated_at: '' },
+  {
+    id: 'd1',
+    name: 'IELTS',
+    word_count: 10,
+    due_count: 3,
+    is_default: true,
+    language_code: null,
+    description: null,
+    created_at: '',
+    updated_at: '',
+  },
 ]
 
 describe('FlashcardsPage', () => {
   it('lists dictionaries with their due counts', async () => {
-    server.use(http.get(`${BASE_URL}/api/v1/dictionaries`, () => HttpResponse.json({ items: DICTIONARIES })))
+    server.use(
+      http.get(`${BASE_URL}/api/v1/dictionaries`, () => HttpResponse.json({ items: DICTIONARIES })),
+    )
     renderPage()
 
     expect(await screen.findByText('IELTS')).toBeInTheDocument()
@@ -5013,7 +5273,9 @@ describe('FlashcardsPage', () => {
   })
 
   it('navigates to /app/review with the dictionary_id when a dictionary card is clicked', async () => {
-    server.use(http.get(`${BASE_URL}/api/v1/dictionaries`, () => HttpResponse.json({ items: DICTIONARIES })))
+    server.use(
+      http.get(`${BASE_URL}/api/v1/dictionaries`, () => HttpResponse.json({ items: DICTIONARIES })),
+    )
     const user = userEvent.setup()
     renderPage()
 
@@ -5022,7 +5284,9 @@ describe('FlashcardsPage', () => {
   })
 
   it('navigates to /app/review with no dictionary_id when "All words" is clicked', async () => {
-    server.use(http.get(`${BASE_URL}/api/v1/dictionaries`, () => HttpResponse.json({ items: DICTIONARIES })))
+    server.use(
+      http.get(`${BASE_URL}/api/v1/dictionaries`, () => HttpResponse.json({ items: DICTIONARIES })),
+    )
     const user = userEvent.setup()
     renderPage()
 
@@ -5176,11 +5440,13 @@ git commit -m "feat: FlashcardsPage becomes a dictionary picker entry point into
 ## Task 21: Remove guest mode
 
 **Files:**
+
 - Modify: `src/context/AuthContext.tsx`, `src/pages/LoginPage.tsx`, `src/hooks/useWords.ts`, `src/hooks/useQuizHistory.ts`, `src/hooks/useAiUsage.ts`
 - Delete: `src/lib/guest/guestStore.ts`, `src/lib/guest/guestProgress.ts`
 - Test: `src/context/AuthContext.test.tsx`, `src/pages/LoginPage.test.tsx`
 
 **Interfaces:**
+
 - Removes the `'guest'` variant from `AuthState` and `continueAsGuest` from `AuthValue` entirely. Every consumer that branched on `state.status === 'guest'` is updated in this same task — they aren't independently reviewable since the type change forces all of them to change together. `ChatWidget.tsx`, `TestsPage.tsx`, `AppLayout.tsx`, `SettingsPage.tsx`, `useCustomFolders.ts` are **not** touched: they reference the generic "not authenticated" case or use guest-flavoured copy strings that remain harmless (and in practice unreachable, since `ProtectedRoute` already redirects anonymous users away from every `/app` page) — cleaning those up is Phase 8 polish, not part of removing the guest entry point itself.
 
 - [ ] **Step 1: Write the failing tests**
@@ -5494,12 +5760,14 @@ git commit -m "feat: remove guest mode"
 ## Task 22: Guest-data import prompt + remove the dead Supabase words client
 
 **Files:**
+
 - Create: `src/features/data/legacyGuestWords.ts`, `src/features/data/GuestImportPrompt.tsx`
 - Modify: `src/pages/AppLayout.tsx`, `src/i18n/locales/en.ts`, `src/i18n/locales/bg.ts`
 - Delete: `src/lib/supabase/words.ts` (its only importer, `useWords.ts`, was switched to `httpWords` in Task 17; `progress.ts`/`usage.ts`/`profiles.ts` stay — they back quiz history, AI usage display and profile upsert, none of which this work order cuts over)
 - Test: `src/features/data/legacyGuestWords.test.ts`, `src/features/data/GuestImportPrompt.test.tsx`
 
 **Interfaces:**
+
 - Produces: `readLegacyGuestWords(): NewWord[]` and `clearLegacyGuestWords(): void`, reading the same `localStorage` key (`dictionary_guest`) the now-deleted `guestStore.ts` used, so a pre-cutover guest's words aren't silently lost. `GuestImportPrompt` — a one-time modal shown after login when legacy words exist, offering to import them into the user's default dictionary via `bulkCreateWords`, or dismiss (which clears the key permanently either way).
 
 - [ ] **Step 1: Write the failing tests**
@@ -5521,11 +5789,19 @@ describe('readLegacyGuestWords', () => {
   it('reads and normalises stored legacy words', () => {
     localStorage.setItem(
       KEY,
-      JSON.stringify([{ word: 'cat', definition: 'an animal', partOfSpeech: 'noun', example: 'A cat sat.' }]),
+      JSON.stringify([
+        { word: 'cat', definition: 'an animal', partOfSpeech: 'noun', example: 'A cat sat.' },
+      ]),
     )
     const words = readLegacyGuestWords()
     expect(words).toEqual([
-      { word: 'cat', definition: 'an animal', partOfSpeech: 'noun', example: 'A cat sat.', folder: 'Imported' },
+      {
+        word: 'cat',
+        definition: 'an animal',
+        partOfSpeech: 'noun',
+        example: 'A cat sat.',
+        folder: 'Imported',
+      },
     ])
   })
 
@@ -5535,7 +5811,10 @@ describe('readLegacyGuestWords', () => {
   })
 
   it('falls back to noun for an invalid part of speech', () => {
-    localStorage.setItem(KEY, JSON.stringify([{ word: 'x', definition: 'y', partOfSpeech: 'nonsense' }]))
+    localStorage.setItem(
+      KEY,
+      JSON.stringify([{ word: 'x', definition: 'y', partOfSpeech: 'nonsense' }]),
+    )
     expect(readLegacyGuestWords()[0].partOfSpeech).toBe('noun')
   })
 })
@@ -5562,7 +5841,9 @@ import { I18nProvider } from '@/context/I18nContext'
 import { GuestImportPrompt } from './GuestImportPrompt'
 
 vi.mock('@/lib/supabase/client', () => ({
-  supabase: { auth: { getSession: vi.fn().mockResolvedValue({ data: { session: { access_token: 't' } } }) } },
+  supabase: {
+    auth: { getSession: vi.fn().mockResolvedValue({ data: { session: { access_token: 't' } } }) },
+  },
 }))
 
 const BASE_URL = 'http://localhost:8000'
@@ -5601,9 +5882,25 @@ describe('GuestImportPrompt', () => {
   it('imports into the default dictionary and clears the key on confirm', async () => {
     server.use(
       http.get(`${BASE_URL}/api/v1/dictionaries`, () =>
-        HttpResponse.json({ items: [{ id: 'd1', name: 'General', is_default: true, word_count: 0, due_count: 0, language_code: null, description: null, created_at: '', updated_at: '' }] }),
+        HttpResponse.json({
+          items: [
+            {
+              id: 'd1',
+              name: 'General',
+              is_default: true,
+              word_count: 0,
+              due_count: 0,
+              language_code: null,
+              description: null,
+              created_at: '',
+              updated_at: '',
+            },
+          ],
+        }),
       ),
-      http.post(`${BASE_URL}/api/v1/dictionaries/d1/words:bulk`, () => HttpResponse.json({ results: [] })),
+      http.post(`${BASE_URL}/api/v1/dictionaries/d1/words:bulk`, () =>
+        HttpResponse.json({ results: [] }),
+      ),
     )
     const user = userEvent.setup()
     renderPrompt()
@@ -5727,7 +6024,8 @@ export function GuestImportPrompt() {
     setImporting(true)
     try {
       const { items } = await listDictionaries()
-      const target = items.find((d) => d.is_default) ?? (await createDictionary({ name: 'Imported' }))
+      const target =
+        items.find((d) => d.is_default) ?? (await createDictionary({ name: 'Imported' }))
       await bulkCreateWords(
         target.id,
         pending.map((w) => ({
@@ -5813,10 +6111,12 @@ git commit -m "feat: add one-time guest-data import prompt; remove dead Supabase
 ## Task 23: Demo account seed script
 
 **Files:**
+
 - Create: `backend/scripts/__init__.py`, `backend/scripts/seed_demo_account.py`
 - Test: `backend/tests/integration/test_seed_demo_account.py`
 
 **Interfaces:**
+
 - Produces: `seed_demo_data(session_factory, user_id: uuid.UUID) -> None` — idempotent (no-op if the user already has a dictionary), pure DB logic, fully tested. `ensure_demo_auth_user(settings, service_role_key) -> uuid.UUID` — calls the Supabase Admin API to find-or-create the demo auth user; this is thin I/O glue against a real external service and is **not** unit tested here (no `respx`/similar HTTP-mocking dependency exists in this project yet, and adding one for a single manually-run script isn't justified) — it's exercised manually against a real Supabase project per the README note added below, the same way `JwtVerifier.ensure_jwks_reachable` already documents itself as a dependency check rather than something covered by the test suite.
 
 - [ ] **Step 1: Write the failing test for the DB half**
