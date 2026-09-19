@@ -45,6 +45,18 @@ class ValidationFailedError(AppError):
     title = "Validation failed"
 
 
+class DuplicateWordError(AppError):
+    status = 409
+    code = "DUPLICATE_WORD"
+    title = "Word already exists"
+
+
+class WordLimitReachedError(AppError):
+    status = 409
+    code = "WORD_LIMIT_REACHED"
+    title = "Word limit reached"
+
+
 class RateLimitedError(AppError):
     status = 429
     code = "RATE_LIMITED"

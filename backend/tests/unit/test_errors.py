@@ -15,7 +15,9 @@ from starlette.middleware.cors import CORSMiddleware
 from app.config import Settings
 from app.errors import (
     AppError,
+    DuplicateWordError,
     NotFoundError,
+    WordLimitReachedError,
     _cors_headers,
     app_error_handler,
     unhandled_error_handler,
@@ -122,3 +124,15 @@ def test_cors_headers_helper_returns_empty_dict_when_disallowed(monkeypatch):
         headers = {"origin": "https://evil.example.com"}
 
     assert _cors_headers(FakeRequest()) == {}  # type: ignore[arg-type]
+
+
+def test_duplicate_word_error_shape():
+    err = DuplicateWordError("cat already exists in this dictionary")
+    assert err.status == 409
+    assert err.code == "DUPLICATE_WORD"
+
+
+def test_word_limit_reached_error_shape():
+    err = WordLimitReachedError("This account is limited to 5000 words.")
+    assert err.status == 409
+    assert err.code == "WORD_LIMIT_REACHED"
