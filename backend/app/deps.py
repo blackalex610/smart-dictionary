@@ -14,7 +14,12 @@ _bearer = HTTPBearer(auto_error=False)
 async def get_session(request: Request) -> AsyncGenerator[AsyncSession, None]:
     session_factory = request.app.state.session_factory
     async with session_factory() as session:
-        yield session
+        try:
+            yield session
+            await session.commit()
+        except Exception:
+            await session.rollback()
+            raise
 
 
 async def get_current_user(
