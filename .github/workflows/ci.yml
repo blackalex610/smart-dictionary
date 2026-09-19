@@ -45,12 +45,29 @@ jobs:
     defaults:
       run:
         working-directory: backend
+    services:
+      postgres:
+        image: postgres:16
+        env:
+          POSTGRES_USER: postgres
+          POSTGRES_PASSWORD: postgres
+          POSTGRES_DB: smart_dictionary_test
+        ports:
+          - 5432:5432
+        options: >-
+          --health-cmd pg_isready
+          --health-interval 10s
+          --health-timeout 5s
+          --health-retries 5
+    env:
+      DATABASE_URL: postgresql+asyncpg://postgres:postgres@localhost:5432/smart_dictionary_test
+      SUPABASE_URL: https://example-project.supabase.co
     steps:
       - uses: actions/checkout@v4
 
       - uses: actions/setup-python@v5
         with:
-          python-version: "3.11"
+          python-version: '3.11'
           cache: pip
           cache-dependency-path: backend/pyproject.toml
 
@@ -62,11 +79,27 @@ jobs:
       - name: Typecheck
         run: mypy app
 
-      # Unit tests only for now -- no route needs a real database yet
-      # (GET /api/v1/me is the only one, and it's exercised against a live
-      # Supabase project manually until Phase 3 adds real integration
-      # tests against a throwaway CI Postgres, per docs/architecture/v2-plan.md §K).
-      - name: Unit tests
+      # Migration drift + reversibility: a model and a migration disagreeing
+      # is exactly the bug that produced `hasExampleColumn` in the pre-V2
+      # frontend (words.ts:20) -- this is the direct answer to it, per
+      # docs/architecture/v2-plan.md §L. Auth schema stub matches what
+      # tests/integration/conftest.py sets up for pytest.
+      - name: Migration round-trip and drift check
+        run: |
+          PGPASSWORD=postgres psql -h localhost -U postgres -d smart_dictionary_test -c "
+            create extension if not exists pgcrypto;
+            create schema if not exists auth;
+            create table if not exists auth.users (id uuid primary key default gen_random_uuid(), email text);
+            create or replace function auth.uid() returns uuid language sql stable as \$\$ select nullif(current_setting('request.jwt.claim.sub', true), '')::uuid \$\$;
+          "
+          alembic upgrade head
+          alembic downgrade -1
+          alembic upgrade head
+          alembic check
+
+      # Unit + integration tests. Integration tests run against the
+      # Postgres service container above (see tests/integration/conftest.py).
+      - name: Tests
         run: pytest
 
   security:
