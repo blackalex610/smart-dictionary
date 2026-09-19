@@ -13,7 +13,6 @@ class ImportJob(Base):
     rows, expiring after an hour. See docs/architecture/v2-plan.md §E/§J."""
 
     __tablename__ = "import_jobs"
-    __table_args__ = {"schema": "public"}
 
     id: Mapped[uuid.UUID] = mapped_column(
         UUID(as_uuid=True), primary_key=True, server_default=text("gen_random_uuid()")
@@ -22,7 +21,7 @@ class ImportJob(Base):
         UUID(as_uuid=True), ForeignKey("auth.users.id", ondelete="CASCADE")
     )
     dictionary_id: Mapped[uuid.UUID] = mapped_column(
-        UUID(as_uuid=True), ForeignKey("public.dictionaries.id", ondelete="CASCADE")
+        UUID(as_uuid=True), ForeignKey("dictionaries.id", ondelete="CASCADE")
     )
     filename: Mapped[str | None] = mapped_column(Text)
     content_type: Mapped[str | None] = mapped_column(Text)

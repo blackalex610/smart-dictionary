@@ -15,7 +15,6 @@ class Progress(Base):
     baseline reflects what is actually live today."""
 
     __tablename__ = "progress"
-    __table_args__ = {"schema": "public"}
 
     id: Mapped[uuid.UUID] = mapped_column(
         UUID(as_uuid=True), primary_key=True, server_default=text("gen_random_uuid()")

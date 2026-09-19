@@ -10,7 +10,6 @@ from app.models.base import Base
 
 class Dictionary(Base):
     __tablename__ = "dictionaries"
-    __table_args__ = {"schema": "public"}
 
     id: Mapped[uuid.UUID] = mapped_column(
         UUID(as_uuid=True), primary_key=True, server_default=text("gen_random_uuid()")

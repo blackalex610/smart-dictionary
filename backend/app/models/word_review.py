@@ -14,10 +14,9 @@ class WordReview(Base):
     `words` insert (migration 0003) so a word always has review state."""
 
     __tablename__ = "word_reviews"
-    __table_args__ = {"schema": "public"}
 
     word_id: Mapped[uuid.UUID] = mapped_column(
-        UUID(as_uuid=True), ForeignKey("public.words.id", ondelete="CASCADE"), primary_key=True
+        UUID(as_uuid=True), ForeignKey("words.id", ondelete="CASCADE"), primary_key=True
     )
     user_id: Mapped[uuid.UUID] = mapped_column(
         UUID(as_uuid=True), ForeignKey("auth.users.id", ondelete="CASCADE")

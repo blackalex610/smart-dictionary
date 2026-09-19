@@ -10,7 +10,6 @@ from app.models.base import Base
 
 class Profile(Base):
     __tablename__ = "profiles"
-    __table_args__ = {"schema": "public"}
 
     user_id: Mapped[uuid.UUID] = mapped_column(
         UUID(as_uuid=True), ForeignKey("auth.users.id", ondelete="CASCADE"), primary_key=True

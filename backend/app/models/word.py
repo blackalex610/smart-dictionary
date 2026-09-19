@@ -10,7 +10,6 @@ from app.models.base import Base
 
 class Word(Base):
     __tablename__ = "words"
-    __table_args__ = {"schema": "public"}
 
     id: Mapped[uuid.UUID] = mapped_column(
         UUID(as_uuid=True), primary_key=True, server_default=text("gen_random_uuid()")
@@ -19,7 +18,7 @@ class Word(Base):
         UUID(as_uuid=True), ForeignKey("auth.users.id", ondelete="CASCADE")
     )
     dictionary_id: Mapped[uuid.UUID] = mapped_column(
-        UUID(as_uuid=True), ForeignKey("public.dictionaries.id", ondelete="CASCADE")
+        UUID(as_uuid=True), ForeignKey("dictionaries.id", ondelete="CASCADE")
     )
     word: Mapped[str] = mapped_column(Text)
     definition: Mapped[str] = mapped_column(Text)

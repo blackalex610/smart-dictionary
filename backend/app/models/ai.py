@@ -15,7 +15,6 @@ class AiRequest(Base):
     it work" (see docs/architecture/v2-plan.md §M)."""
 
     __tablename__ = "ai_requests"
-    __table_args__ = {"schema": "public"}
 
     id: Mapped[uuid.UUID] = mapped_column(
         UUID(as_uuid=True), primary_key=True, server_default=text("gen_random_uuid()")
@@ -43,7 +42,6 @@ class AiCache(Base):
     user notes. See docs/architecture/v2-plan.md §E."""
 
     __tablename__ = "ai_cache"
-    __table_args__ = {"schema": "public"}
 
     cache_key: Mapped[str] = mapped_column(Text, primary_key=True)
     response: Mapped[dict[str, object]] = mapped_column(JSONB)

@@ -15,11 +15,10 @@ class ReviewLog(Base):
     streak metrics honest (see docs/architecture/v2-plan.md §E)."""
 
     __tablename__ = "review_log"
-    __table_args__ = {"schema": "public"}
 
     id: Mapped[int] = mapped_column(BigInteger, primary_key=True, autoincrement=True)
     word_id: Mapped[uuid.UUID] = mapped_column(
-        UUID(as_uuid=True), ForeignKey("public.words.id", ondelete="CASCADE")
+        UUID(as_uuid=True), ForeignKey("words.id", ondelete="CASCADE")
     )
     user_id: Mapped[uuid.UUID] = mapped_column(
         UUID(as_uuid=True), ForeignKey("auth.users.id", ondelete="CASCADE")
