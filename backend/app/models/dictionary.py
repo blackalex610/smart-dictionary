@@ -1,7 +1,7 @@
 import uuid
 from datetime import datetime
 
-from sqlalchemy import ForeignKey, text
+from sqlalchemy import DateTime, ForeignKey, Text, text
 from sqlalchemy.dialects.postgresql import UUID
 from sqlalchemy.orm import Mapped, mapped_column
 
@@ -18,10 +18,14 @@ class Dictionary(Base):
     user_id: Mapped[uuid.UUID] = mapped_column(
         UUID(as_uuid=True), ForeignKey("auth.users.id", ondelete="CASCADE")
     )
-    name: Mapped[str]
-    language_code: Mapped[str | None]
-    description: Mapped[str | None]
+    name: Mapped[str] = mapped_column(Text)
+    language_code: Mapped[str | None] = mapped_column(Text)
+    description: Mapped[str | None] = mapped_column(Text)
     is_default: Mapped[bool] = mapped_column(server_default=text("false"))
-    created_at: Mapped[datetime] = mapped_column(server_default=text("now()"))
-    updated_at: Mapped[datetime] = mapped_column(server_default=text("now()"))
-    deleted_at: Mapped[datetime | None]
+    created_at: Mapped[datetime] = mapped_column(
+        DateTime(timezone=True), server_default=text("now()")
+    )
+    updated_at: Mapped[datetime] = mapped_column(
+        DateTime(timezone=True), server_default=text("now()")
+    )
+    deleted_at: Mapped[datetime | None] = mapped_column(DateTime(timezone=True))

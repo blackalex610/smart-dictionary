@@ -2,7 +2,7 @@ import uuid
 from datetime import datetime
 from decimal import Decimal
 
-from sqlalchemy import ForeignKey, text
+from sqlalchemy import DateTime, ForeignKey, Text, text
 from sqlalchemy.dialects.postgresql import JSONB, UUID
 from sqlalchemy.orm import Mapped, mapped_column
 
@@ -23,10 +23,12 @@ class Progress(Base):
     user_id: Mapped[uuid.UUID] = mapped_column(
         UUID(as_uuid=True), ForeignKey("auth.users.id", ondelete="CASCADE")
     )
-    quiz_type: Mapped[str]
+    quiz_type: Mapped[str] = mapped_column(Text)
     score: Mapped[int]
     total_questions: Mapped[int]
     percentage: Mapped[Decimal | None] = mapped_column(insert_default=None)
     words_count: Mapped[int] = mapped_column(server_default=text("0"))
     details: Mapped[dict[str, object]] = mapped_column(JSONB, server_default=text("'{}'::jsonb"))
-    created_at: Mapped[datetime] = mapped_column(server_default=text("now()"))
+    created_at: Mapped[datetime] = mapped_column(
+        DateTime(timezone=True), server_default=text("now()")
+    )

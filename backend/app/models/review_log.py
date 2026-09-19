@@ -2,7 +2,7 @@ import uuid
 from datetime import datetime
 from decimal import Decimal
 
-from sqlalchemy import BigInteger, ForeignKey, SmallInteger, text
+from sqlalchemy import BigInteger, DateTime, ForeignKey, SmallInteger, Text, text
 from sqlalchemy.dialects.postgresql import UUID
 from sqlalchemy.orm import Mapped, mapped_column
 
@@ -25,10 +25,12 @@ class ReviewLog(Base):
         UUID(as_uuid=True), ForeignKey("auth.users.id", ondelete="CASCADE")
     )
     rating: Mapped[int] = mapped_column(SmallInteger)
-    reviewed_at: Mapped[datetime] = mapped_column(server_default=text("now()"))
+    reviewed_at: Mapped[datetime] = mapped_column(
+        DateTime(timezone=True), server_default=text("now()")
+    )
     interval_before: Mapped[int | None]
     interval_after: Mapped[int | None]
     ease_before: Mapped[Decimal | None]
     ease_after: Mapped[Decimal | None]
     elapsed_ms: Mapped[int | None]
-    source: Mapped[str]
+    source: Mapped[str] = mapped_column(Text)

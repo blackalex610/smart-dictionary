@@ -1,7 +1,7 @@
 import uuid
 from datetime import datetime
 
-from sqlalchemy import ForeignKey, Integer, text
+from sqlalchemy import DateTime, ForeignKey, Integer, Text, text
 from sqlalchemy.dialects.postgresql import JSONB, UUID
 from sqlalchemy.orm import Mapped, mapped_column
 
@@ -24,12 +24,16 @@ class ImportJob(Base):
     dictionary_id: Mapped[uuid.UUID] = mapped_column(
         UUID(as_uuid=True), ForeignKey("public.dictionaries.id", ondelete="CASCADE")
     )
-    filename: Mapped[str | None]
-    content_type: Mapped[str | None]
+    filename: Mapped[str | None] = mapped_column(Text)
+    content_type: Mapped[str | None] = mapped_column(Text)
     size_bytes: Mapped[int | None] = mapped_column(Integer)
-    status: Mapped[str]
+    status: Mapped[str] = mapped_column(Text)
     rows: Mapped[list[object] | None] = mapped_column(JSONB)
     row_count: Mapped[int | None]
-    error_code: Mapped[str | None]
-    created_at: Mapped[datetime] = mapped_column(server_default=text("now()"))
-    expires_at: Mapped[datetime] = mapped_column(server_default=text("now() + interval '1 hour'"))
+    error_code: Mapped[str | None] = mapped_column(Text)
+    created_at: Mapped[datetime] = mapped_column(
+        DateTime(timezone=True), server_default=text("now()")
+    )
+    expires_at: Mapped[datetime] = mapped_column(
+        DateTime(timezone=True), server_default=text("now() + interval '1 hour'")
+    )

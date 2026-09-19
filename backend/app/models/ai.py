@@ -2,7 +2,7 @@ import uuid
 from datetime import datetime
 from decimal import Decimal
 
-from sqlalchemy import ForeignKey, text
+from sqlalchemy import DateTime, ForeignKey, Text, text
 from sqlalchemy.dialects.postgresql import JSONB, UUID
 from sqlalchemy.orm import Mapped, mapped_column
 
@@ -23,16 +23,18 @@ class AiRequest(Base):
     user_id: Mapped[uuid.UUID | None] = mapped_column(
         UUID(as_uuid=True), ForeignKey("auth.users.id", ondelete="SET NULL")
     )
-    kind: Mapped[str]
-    model: Mapped[str]
-    prompt_version: Mapped[str]
+    kind: Mapped[str] = mapped_column(Text)
+    model: Mapped[str] = mapped_column(Text)
+    prompt_version: Mapped[str] = mapped_column(Text)
     input_tokens: Mapped[int | None]
     output_tokens: Mapped[int | None]
     cost_usd: Mapped[Decimal | None]
     latency_ms: Mapped[int | None]
-    status: Mapped[str]
+    status: Mapped[str] = mapped_column(Text)
     cache_hit: Mapped[bool] = mapped_column(server_default=text("false"))
-    created_at: Mapped[datetime] = mapped_column(server_default=text("now()"))
+    created_at: Mapped[datetime] = mapped_column(
+        DateTime(timezone=True), server_default=text("now()")
+    )
 
 
 class AiCache(Base):
@@ -43,8 +45,10 @@ class AiCache(Base):
     __tablename__ = "ai_cache"
     __table_args__ = {"schema": "public"}
 
-    cache_key: Mapped[str] = mapped_column(primary_key=True)
+    cache_key: Mapped[str] = mapped_column(Text, primary_key=True)
     response: Mapped[dict[str, object]] = mapped_column(JSONB)
     hit_count: Mapped[int] = mapped_column(server_default=text("0"))
-    created_at: Mapped[datetime] = mapped_column(server_default=text("now()"))
-    expires_at: Mapped[datetime]
+    created_at: Mapped[datetime] = mapped_column(
+        DateTime(timezone=True), server_default=text("now()")
+    )
+    expires_at: Mapped[datetime] = mapped_column(DateTime(timezone=True))

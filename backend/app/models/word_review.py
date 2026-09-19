@@ -2,7 +2,7 @@ import uuid
 from datetime import datetime
 from decimal import Decimal
 
-from sqlalchemy import ForeignKey, text
+from sqlalchemy import DateTime, ForeignKey, Text, text
 from sqlalchemy.dialects.postgresql import UUID
 from sqlalchemy.orm import Mapped, mapped_column
 
@@ -22,12 +22,16 @@ class WordReview(Base):
     user_id: Mapped[uuid.UUID] = mapped_column(
         UUID(as_uuid=True), ForeignKey("auth.users.id", ondelete="CASCADE")
     )
-    state: Mapped[str] = mapped_column(server_default=text("'new'"))
+    state: Mapped[str] = mapped_column(Text, server_default=text("'new'"))
     ease_factor: Mapped[Decimal] = mapped_column(server_default=text("2.50"))
     interval_days: Mapped[int] = mapped_column(server_default=text("0"))
     repetitions: Mapped[int] = mapped_column(server_default=text("0"))
     lapses: Mapped[int] = mapped_column(server_default=text("0"))
-    due_at: Mapped[datetime | None]
-    last_reviewed_at: Mapped[datetime | None]
-    created_at: Mapped[datetime] = mapped_column(server_default=text("now()"))
-    updated_at: Mapped[datetime] = mapped_column(server_default=text("now()"))
+    due_at: Mapped[datetime | None] = mapped_column(DateTime(timezone=True))
+    last_reviewed_at: Mapped[datetime | None] = mapped_column(DateTime(timezone=True))
+    created_at: Mapped[datetime] = mapped_column(
+        DateTime(timezone=True), server_default=text("now()")
+    )
+    updated_at: Mapped[datetime] = mapped_column(
+        DateTime(timezone=True), server_default=text("now()")
+    )

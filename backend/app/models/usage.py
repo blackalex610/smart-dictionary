@@ -2,7 +2,7 @@ import uuid
 from datetime import date, datetime
 from decimal import Decimal
 
-from sqlalchemy import BigInteger, Date, ForeignKey, text
+from sqlalchemy import BigInteger, Date, DateTime, ForeignKey, text
 from sqlalchemy.dialects.postgresql import UUID
 from sqlalchemy.orm import Mapped, mapped_column
 
@@ -31,4 +31,6 @@ class UsageDaily(Base):
     ai_output_tokens: Mapped[int] = mapped_column(BigInteger, server_default=text("0"))
     ai_cost_usd: Mapped[Decimal] = mapped_column(server_default=text("0"))
     reviews_done: Mapped[int] = mapped_column(server_default=text("0"))
-    updated_at: Mapped[datetime] = mapped_column(server_default=text("now()"))
+    updated_at: Mapped[datetime] = mapped_column(
+        DateTime(timezone=True), server_default=text("now()")
+    )
