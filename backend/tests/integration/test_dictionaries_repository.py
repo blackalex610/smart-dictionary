@@ -64,3 +64,46 @@ async def test_deleted_name_is_reusable(db_session):
 
     recreated = await repo.create(user_id, "Reuse Me")
     assert recreated.id != original.id
+
+
+async def test_update_changes_name(db_session):
+    user_id = await create_user(db_session)
+    repo = DictionaryRepository(db_session)
+    dictionary = await repo.create(user_id, "Old Name")
+
+    updated = await repo.update(dictionary.id, user_id, name="New Name")
+    assert updated is not None
+    assert updated.name == "New Name"
+
+
+async def test_set_default_unsets_previous_default(db_session):
+    user_id = await create_user(db_session)
+    repo = DictionaryRepository(db_session)
+    first = await repo.create(user_id, "First", is_default=True)
+    second = await repo.create(user_id, "Second")
+
+    result = await repo.set_default(second.id, user_id)
+
+    assert result is not None
+    assert result.is_default is True
+    refreshed_first = await repo.get(first.id, user_id)
+    assert refreshed_first is not None
+    assert refreshed_first.is_default is False
+
+
+async def test_counts_for_reports_word_and_due_counts(db_session):
+    from datetime import UTC, datetime, timedelta
+
+    from tests.factories import create_word, set_review_state
+
+    user_id = await create_user(db_session)
+    repo = DictionaryRepository(db_session)
+    dictionary = await repo.create(user_id, "Counted")
+
+    due = await create_word(db_session, dictionary.id, user_id, word="due")
+    await set_review_state(db_session, due.id, due_at=datetime.now(UTC) - timedelta(hours=1))
+    await create_word(db_session, dictionary.id, user_id, word="notdue")
+
+    word_count, due_count = await repo.counts_for(dictionary.id)
+    assert word_count == 2
+    assert due_count == 1
