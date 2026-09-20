@@ -16,9 +16,11 @@ running app.
 """
 
 import os
-from collections.abc import AsyncGenerator
+import uuid
+from collections.abc import AsyncGenerator, Callable, Iterator
 
 import asyncpg
+import httpx
 import pytest
 from alembic.config import Config
 from sqlalchemy.ext.asyncio import AsyncSession
@@ -26,6 +28,9 @@ from sqlalchemy.ext.asyncio import AsyncSession
 from alembic import command
 from app.config import Settings
 from app.db import make_engine, make_session_factory
+from app.deps import get_current_user, get_session
+from app.main import create_app
+from app.security.jwt import VerifiedUser
 
 BACKEND_ROOT = os.path.dirname(os.path.dirname(os.path.dirname(os.path.abspath(__file__))))
 
@@ -99,3 +104,25 @@ async def db_session(_migrated_database: str) -> AsyncGenerator[AsyncSession, No
             await transaction.rollback()
 
     await engine.dispose()
+
+
+@pytest.fixture
+def api_client(db_session: AsyncSession) -> Iterator[Callable[..., httpx.AsyncClient]]:
+    """Returns a factory building an httpx.AsyncClient authenticated as the
+    given user, sharing this test's rolled-back db_session so nothing it
+    writes leaks into another test."""
+    app = create_app()
+
+    async def _use_test_session() -> AsyncGenerator[AsyncSession, None]:
+        yield db_session
+
+    app.dependency_overrides[get_session] = _use_test_session
+
+    def _make(user_id: uuid.UUID, *, email: str | None = "test@example.com") -> httpx.AsyncClient:
+        app.dependency_overrides[get_current_user] = lambda: VerifiedUser(
+            user_id=str(user_id), email=email
+        )
+        return httpx.AsyncClient(transport=httpx.ASGITransport(app=app), base_url="http://test")
+
+    yield _make
+    app.dependency_overrides.clear()
