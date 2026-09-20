@@ -44,7 +44,10 @@ export default tseslint.config(
     },
   },
   {
-    files: ['src/hooks/**/*.{ts,tsx}', 'src/api/**/*.{ts,tsx}'],
+    // src/lib/http/ is the adapter layer that maps the typed api/ modules onto
+    // the domain ports (WordsBackend); like hooks/, it sits between components
+    // and api/ rather than being the component code the rule above guards.
+    files: ['src/hooks/**/*.{ts,tsx}', 'src/api/**/*.{ts,tsx}', 'src/lib/http/**/*.{ts,tsx}'],
     rules: { 'no-restricted-imports': 'off' },
   },
   {

@@ -1,12 +1,12 @@
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query'
 import { useAuth } from '@/context/AuthContext'
 import { guestWords } from '@/lib/guest/guestStore'
-import { supabaseWords } from '@/lib/supabase/words'
+import { httpWords } from '@/lib/http/words'
 import type { NewWord, Word, WordsBackend } from '@/types/domain'
 
 export function useWordsBackend(): WordsBackend | null {
   const { state } = useAuth()
-  if (state.status === 'authenticated') return supabaseWords
+  if (state.status === 'authenticated') return httpWords
   if (state.status === 'guest') return guestWords
   return null
 }
