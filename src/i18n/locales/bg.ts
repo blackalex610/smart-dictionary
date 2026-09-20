@@ -37,6 +37,8 @@ const bg: Partial<Dict> = {
   'alphabetical-za': 'По азбучен ред (Я-А)',
   'undo-btn': 'Отмени',
   'flashcards-title': 'Флаш карти',
+  'flashcards-all-words': 'Всички думи',
+  'flashcards-due-count': '{n} за преговор',
   'select-words-label': 'Избери думи за упражнение',
   'flashcard-search-placeholder': 'Търси думи...',
   'select-all': 'Избери всички',

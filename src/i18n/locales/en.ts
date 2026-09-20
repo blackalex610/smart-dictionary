@@ -35,6 +35,8 @@ const en = {
   'alphabetical-za': 'Alphabetical (Z-A)',
   'undo-btn': 'Undo',
   'flashcards-title': 'Flashcards',
+  'flashcards-all-words': 'All words',
+  'flashcards-due-count': '{n} due',
   'select-words-label': 'Select words for practice',
   'flashcard-search-placeholder': 'Search words...',
   'select-all': 'Select All',

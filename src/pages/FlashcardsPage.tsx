@@ -1,29 +1,15 @@
-import { useState } from 'react'
 import { Layers, Play } from 'lucide-react'
-import { Button } from '@/components/ui/Button'
-import { useToast } from '@/components/ui/Toast'
-import { FlashcardModal } from '@/features/flashcards/FlashcardModal'
-import { WordPicker } from '@/features/shared/WordPicker'
+import { useNavigate } from 'react-router-dom'
 import { useT } from '@/context/I18nContext'
-import { useWords } from '@/hooks/useWords'
-import { shuffle } from '@/lib/shuffle'
-import type { Word } from '@/types/domain'
+import { useDictionaries } from '@/hooks/useDictionaries'
 
 export function FlashcardsPage() {
   const t = useT()
-  const toast = useToast()
-  const { data: words = [], isLoading } = useWords()
+  const navigate = useNavigate()
+  const { data: dictionaries = [], isLoading } = useDictionaries()
 
-  const [selected, setSelected] = useState<Set<string>>(new Set())
-  const [deck, setDeck] = useState<Word[] | null>(null)
-
-  const start = () => {
-    const chosen = words.filter((word) => selected.has(word.id))
-    if (chosen.length === 0) {
-      toast.push(t('err-select-word'), 'error')
-      return
-    }
-    setDeck(shuffle(chosen))
+  const start = (dictionaryId?: string) => {
+    navigate(dictionaryId ? `/app/review?dictionary_id=${dictionaryId}` : '/app/review')
   }
 
   return (
@@ -36,10 +22,6 @@ export function FlashcardsPage() {
           </h1>
           <p className="mt-1.5 text-[14.5px] text-fg-muted">{t('flashcards-subtitle')}</p>
         </div>
-        <Button size="lg" onClick={start} disabled={isLoading || words.length === 0}>
-          <Play size={17} />
-          {t('start-practice')}
-        </Button>
       </header>
 
       <section className="mt-6 rounded-card border border-line bg-surface p-5 shadow-card">
@@ -47,18 +29,38 @@ export function FlashcardsPage() {
 
         {isLoading ? (
           <div className="mt-4 space-y-2">
-            {Array.from({ length: 5 }).map((_, index) => (
+            {Array.from({ length: 3 }).map((_, index) => (
               <div key={index} className="h-[52px] animate-pulse rounded-lg bg-surface-2" />
             ))}
           </div>
-        ) : words.length === 0 ? (
+        ) : dictionaries.length === 0 ? (
           <p className="py-10 text-center text-[14.5px] text-fg-muted">{t('empty-body')}</p>
         ) : (
-          <WordPicker className="mt-4" words={words} selected={selected} onChange={setSelected} />
+          <div className="mt-4 grid gap-3 sm:grid-cols-2">
+            <button
+              type="button"
+              onClick={() => start()}
+              className="flex items-center justify-between rounded-[10px] border border-line bg-surface-2 px-4 py-3.5 text-left transition hover:border-brand"
+            >
+              <span className="text-[14.5px] font-medium text-fg">{t('flashcards-all-words')}</span>
+              <Play size={16} className="text-brand" />
+            </button>
+            {dictionaries.map((dictionary) => (
+              <button
+                key={dictionary.id}
+                type="button"
+                onClick={() => start(dictionary.id)}
+                className="flex items-center justify-between rounded-[10px] border border-line bg-surface-2 px-4 py-3.5 text-left transition hover:border-brand"
+              >
+                <span className="text-[14.5px] font-medium text-fg">{dictionary.name}</span>
+                <span className="text-[13px] text-fg-muted">
+                  {t('flashcards-due-count', { n: dictionary.due_count })}
+                </span>
+              </button>
+            ))}
+          </div>
         )}
       </section>
-
-      {deck && <FlashcardModal words={deck} onClose={() => setDeck(null)} />}
     </>
   )
 }

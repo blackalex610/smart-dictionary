@@ -3,6 +3,7 @@ import { AppLayout } from '@/pages/AppLayout'
 import { DictionaryPage } from '@/pages/DictionaryPage'
 import { FlashcardsPage } from '@/pages/FlashcardsPage'
 import { LoginPage } from '@/pages/LoginPage'
+import { ReviewPage } from '@/pages/ReviewPage'
 import { SettingsPage } from '@/pages/SettingsPage'
 import { TestsPage } from '@/pages/TestsPage'
 import { AuthCallbackPage, NotFoundPage, ProtectedRoute } from '@/pages/misc'
@@ -20,6 +21,7 @@ export const router = createBrowserRouter([
     children: [
       { index: true, element: <DictionaryPage /> },
       { path: 'flashcards', element: <FlashcardsPage /> },
+      { path: 'review', element: <ReviewPage /> },
       { path: 'tests', element: <TestsPage /> },
       { path: 'settings', element: <SettingsPage /> },
     ],
