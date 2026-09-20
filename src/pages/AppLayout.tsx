@@ -4,6 +4,7 @@ import { Bell, ChevronDown, LogOut, Moon, Sun } from 'lucide-react'
 import { BackToTop } from '@/components/ui/BackToTop'
 import { LogoMark } from '@/components/ui/Logo'
 import { ChatWidget } from '@/features/chat/ChatWidget'
+import { GuestImportPrompt } from '@/features/data/GuestImportPrompt'
 import { useAuth } from '@/context/AuthContext'
 import { useT } from '@/context/I18nContext'
 import { useTheme } from '@/context/ThemeContext'
@@ -157,6 +158,7 @@ export function AppLayout() {
 
       <BackToTop />
       <ChatWidget />
+      <GuestImportPrompt />
     </div>
   )
 }

@@ -151,6 +151,12 @@ const bg: Partial<Dict> = {
   loading: 'Зареждане…',
   'sign-in-google': 'Влез с Google',
   'continue-as-guest': 'Продължи като гост',
+  'guest-import-title': 'Импортиране на думите?',
+  'guest-import-body':
+    'Намерихме {n} думи, запазени на това устройство. Да ги добавим ли към акаунта ти?',
+  'guest-import-confirm': 'Импортирай',
+  'guest-import-dismiss': 'Не сега',
+  'guest-import-success': 'Импортирани {n} думи.',
   'login-tagline': 'Изгради речника си с думи, флаш карти и AI тестове.',
   'coming-soon': 'Скоро',
   'page-in-progress': 'Този екран е част от текущата преработка.',
