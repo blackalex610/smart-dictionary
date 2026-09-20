@@ -33,6 +33,8 @@ class WordRepository:
         part_of_speech: str | None = None,
         example: str | None = None,
         translation: str | None = None,
+        notes: str | None = None,
+        difficulty: int | None = None,
     ) -> Word:
         row = Word(
             dictionary_id=dictionary_id,
@@ -42,6 +44,8 @@ class WordRepository:
             part_of_speech=part_of_speech,
             example=example,
             translation=translation,
+            notes=notes,
+            difficulty=difficulty,
         )
         self._session.add(row)
         await self._session.flush()
@@ -157,6 +161,25 @@ class WordRepository:
             except IntegrityError:
                 results.append({"word": None, "error": "DUPLICATE_WORD"})
         return results
+
+    async def update(
+        self, word_id: uuid.UUID, user_id: uuid.UUID, **fields: object
+    ) -> Word | None:
+        word = await self.get(word_id, user_id)
+        if word is None:
+            return None
+        for key, value in fields.items():
+            setattr(word, key, value)
+        await self._session.flush()
+        return word
+
+    async def count_for_user(self, user_id: uuid.UUID) -> int:
+        result = await self._session.scalar(
+            select(func.count())
+            .select_from(Word)
+            .where(Word.user_id == user_id, Word.deleted_at.is_(None))
+        )
+        return result or 0
 
     async def move(
         self, word_id: uuid.UUID, user_id: uuid.UUID, dictionary_id: uuid.UUID

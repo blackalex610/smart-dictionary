@@ -274,3 +274,37 @@ async def test_move_returns_none_for_unowned_word(db_session):
 
     other_dict = await DictionaryRepository(db_session).create(other, "Other's dict")
     assert await repo.move(word.id, other, other_dict.id) is None
+
+
+async def test_update_changes_fields(db_session):
+    user_id = await create_user(db_session)
+    dictionary = await create_dictionary(db_session, user_id)
+    repo = WordRepository(db_session)
+    word = await repo.create(dictionary.id, user_id, "old", "old definition")
+
+    updated = await repo.update(word.id, user_id, word="new", definition="new definition")
+
+    assert updated is not None
+    assert updated.word == "new"
+    assert updated.definition == "new definition"
+
+
+async def test_update_returns_none_for_unowned_word(db_session):
+    owner = await create_user(db_session, email="owner5@example.com")
+    other = await create_user(db_session, email="other5@example.com")
+    dictionary = await create_dictionary(db_session, owner)
+    repo = WordRepository(db_session)
+    word = await repo.create(dictionary.id, owner, "x", "y")
+
+    assert await repo.update(word.id, other, word="z") is None
+
+
+async def test_count_for_user_excludes_soft_deleted(db_session):
+    user_id = await create_user(db_session)
+    dictionary = await create_dictionary(db_session, user_id)
+    repo = WordRepository(db_session)
+    await repo.create(dictionary.id, user_id, "kept", "d")
+    removed = await repo.create(dictionary.id, user_id, "removed", "d")
+    await repo.soft_delete(removed.id, user_id)
+
+    assert await repo.count_for_user(user_id) == 1
