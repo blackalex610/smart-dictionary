@@ -1,13 +1,11 @@
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query'
 import { useAuth } from '@/context/AuthContext'
-import { guestWords } from '@/lib/guest/guestStore'
 import { httpWords } from '@/lib/http/words'
 import type { NewWord, Word, WordsBackend } from '@/types/domain'
 
 export function useWordsBackend(): WordsBackend | null {
   const { state } = useAuth()
   if (state.status === 'authenticated') return httpWords
-  if (state.status === 'guest') return guestWords
   return null
 }
 
@@ -18,7 +16,7 @@ export function useWords() {
   return useQuery({
     queryKey: ['words', scope],
     queryFn: () => (backend ? backend.list() : Promise.resolve<Word[]>([])),
-    enabled: state.status === 'authenticated' || state.status === 'guest',
+    enabled: state.status === 'authenticated',
     staleTime: 30_000,
   })
 }

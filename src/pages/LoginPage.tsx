@@ -1,5 +1,5 @@
 import { useState } from 'react'
-import { Navigate, useNavigate } from 'react-router-dom'
+import { Navigate } from 'react-router-dom'
 import { BookMarked, Brain, Layers, Sparkles } from 'lucide-react'
 import { LogoMark } from '@/components/ui/Logo'
 import { Spinner } from '@/components/ui/Spinner'
@@ -16,8 +16,7 @@ const FEATURES: { icon: typeof BookMarked; key: TranslationKey }[] = [
 
 export function LoginPage() {
   const t = useT()
-  const navigate = useNavigate()
-  const { state, signIn, continueAsGuest } = useAuth()
+  const { state, signIn } = useAuth()
   const [busy, setBusy] = useState(false)
 
   if (state.status === 'loading') {
@@ -28,7 +27,7 @@ export function LoginPage() {
     )
   }
 
-  if (state.status === 'authenticated' || state.status === 'guest') {
+  if (state.status === 'authenticated') {
     return <Navigate to="/app" replace />
   }
 
@@ -69,17 +68,6 @@ export function LoginPage() {
         >
           {busy ? <Spinner /> : null}
           {t('sign-in-google')}
-        </button>
-
-        <button
-          type="button"
-          onClick={() => {
-            continueAsGuest()
-            navigate('/app')
-          }}
-          className="mt-3 flex h-[48px] w-full items-center justify-center rounded-[10px] border border-line text-[14.5px] font-medium text-fg-muted transition hover:bg-surface-2 hover:text-fg"
-        >
-          {t('continue-as-guest')}
         </button>
       </div>
     </div>

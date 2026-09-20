@@ -4,7 +4,7 @@ import { useAuth } from '@/context/AuthContext'
 import { getTodayUsage } from '@/lib/supabase/usage'
 import type { UsageInfo } from '@/types/domain'
 
-/** Guests never reach the Edge Function, so they have no server-side quota. */
+/** Unauthenticated/loading has no server-side quota to report yet. */
 const GUEST_USAGE: UsageInfo = { used: 0, limit: 0, isUnlimited: false }
 
 export function useAiUsage() {
