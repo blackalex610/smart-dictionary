@@ -92,6 +92,11 @@
   .flip-card.is-flipped {
     transform: rotateY(180deg);
   }
+  @media (prefers-reduced-motion: reduce) {
+    .flip-card {
+      transition: none;
+    }
+  }
   .flip-face {
     position: absolute;
     inset: 0;
