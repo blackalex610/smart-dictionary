@@ -13,7 +13,9 @@ export function useAiUsage() {
   return useQuery({
     queryKey: ['ai-usage', scope],
     queryFn: (): Promise<UsageInfo> =>
-      state.status === 'authenticated' ? getTodayUsage() : Promise.resolve(GUEST_USAGE),
+      state.status === 'authenticated'
+        ? getTodayUsage(state.user.id)
+        : Promise.resolve(GUEST_USAGE),
     enabled: state.status === 'authenticated',
     staleTime: 15_000,
   })

@@ -40,22 +40,44 @@ async function mapLimited<T, R>(
   return results
 }
 
-function localChoiceQuestion(word: Word, pool: Word[]): ChoiceQuestion {
-  const distractors = sample(
-    pool.filter((candidate) => candidate.id !== word.id).map((candidate) => candidate.definition),
-    3,
-  )
-  while (distractors.length < 3) {
-    distractors.push(`${word.definition} (${distractors.length + 1})`)
+/**
+ * A multiple-choice question is only answerable if exactly one option is the
+ * right one. `correctIndex` is resolved with `indexOf`, which returns the
+ * first match -- so a distractor equal to the correct answer makes the
+ * visually identical second copy grade as wrong. Two words sharing a
+ * definition is enough to trigger that locally, and an AI asked for
+ * "plausible incorrect" definitions returns the correct one often enough to
+ * matter. Deduplicate first, and take up to three distractors: a question
+ * with two or three distinct options is a worse question than one with four,
+ * but it is still a correct one.
+ *
+ * Returns an empty array when not even one distinct distractor exists, which
+ * the callers treat as "this question cannot be built".
+ */
+export function buildChoiceOptions(correct: string, candidates: readonly string[]): string[] {
+  const seen = new Set([correct])
+  const distractors: string[] = []
+  for (const candidate of candidates) {
+    if (distractors.length === 3) break
+    if (typeof candidate !== 'string' || !candidate || seen.has(candidate)) continue
+    seen.add(candidate)
+    distractors.push(candidate)
   }
-  const options = shuffle([word.definition, ...distractors])
+  return distractors.length === 0 ? [] : shuffle([correct, ...distractors])
+}
+
+function localChoiceQuestion(word: Word, pool: Word[]): ChoiceQuestion {
+  const candidates = shuffle(
+    pool.filter((candidate) => candidate.id !== word.id).map((candidate) => candidate.definition),
+  )
+  const options = buildChoiceOptions(word.definition, candidates)
   return {
     kind: 'choice',
     id: word.id,
     word: word.word,
     prompt: word.word,
-    options,
-    correctIndex: options.indexOf(word.definition),
+    options: options.length > 0 ? options : [word.definition],
+    correctIndex: options.length > 0 ? options.indexOf(word.definition) : 0,
   }
 }
 
@@ -168,22 +190,22 @@ export async function generateQuiz({
         const data = await callAi(() =>
           aiWrongAnswers(word.word, word.definition, word.partOfSpeech),
         )
-        if (
-          !data?.correctAnswer ||
-          !Array.isArray(data.wrongAnswers) ||
-          data.wrongAnswers.length < 3
-        ) {
+        const correctAnswer = data?.correctAnswer
+        const options =
+          correctAnswer && Array.isArray(data?.wrongAnswers)
+            ? buildChoiceOptions(correctAnswer, data.wrongAnswers)
+            : []
+        if (!correctAnswer || options.length === 0) {
           fallbackCount++
           return localChoiceQuestion(word, pool)
         }
-        const options = shuffle([data.correctAnswer, ...data.wrongAnswers.slice(0, 3)])
         return {
           kind: 'choice',
           id: word.id,
           word: word.word,
           prompt: word.word,
           options,
-          correctIndex: options.indexOf(data.correctAnswer),
+          correctIndex: options.indexOf(correctAnswer),
         }
       }
 

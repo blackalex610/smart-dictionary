@@ -21,13 +21,15 @@ export function FlashcardModal({ words, onClose }: Props) {
   const atStart = index === 0
   const atEnd = index >= words.length - 1
 
+  // A `setIndex` updater must be pure -- React may call it more than once for
+  // a single update (StrictMode does exactly that in development), so the
+  // `setFlipped` that used to live inside it could fire against a stale
+  // render. Every move lands on a new card, which is always shown front
+  // first, so resetting unconditionally out here is both correct and simpler.
   const go = useCallback(
     (delta: number) => {
-      setIndex((prev) => {
-        const next = Math.min(words.length - 1, Math.max(0, prev + delta))
-        if (next !== prev) setFlipped(false)
-        return next
-      })
+      setIndex((prev) => Math.min(words.length - 1, Math.max(0, prev + delta)))
+      setFlipped(false)
     },
     [words.length],
   )
@@ -41,6 +43,18 @@ export function FlashcardModal({ words, onClose }: Props) {
       if (event.key === 'ArrowLeft') go(-1)
       else if (event.key === 'ArrowRight') go(1)
       else if (event.key === ' ' || event.code === 'Space') {
+        // Space is this deck's flip shortcut, but it is also how a keyboard
+        // user activates whichever button they have tabbed to (Previous,
+        // Next, the pronounce button). Swallowing it unconditionally made
+        // those controls unusable without a mouse, so the shortcut only
+        // applies while focus is not on a control of its own.
+        const active = document.activeElement
+        if (
+          active instanceof HTMLElement &&
+          active.closest('button, [href], input, select, textarea')
+        ) {
+          return
+        }
         event.preventDefault()
         setFlipped((prev) => !prev)
       }

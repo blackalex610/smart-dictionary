@@ -66,34 +66,11 @@ Deno.serve(async (req) => {
       })
     }
 
-    // Daily usage gate. Enforced atomically per tier before any OpenAI call.
-    const { data: usageRows, error: usageError } = await supabase.rpc('consume_ai_request_quota', {
-      p_user_id: userData.user.id,
-    })
-
-    if (usageError) {
-      return new Response(JSON.stringify({ error: usageError.message }), {
-        status: 500,
-        headers: { ...corsHeaders, 'Content-Type': 'application/json' },
-      })
-    }
-
-    const usage = usageRows?.[0]
-    if (!usage?.allowed) {
-      return new Response(
-        JSON.stringify({
-          error: 'AI_DAILY_LIMIT_REACHED',
-          message: 'Daily AI limit reached for your current plan.',
-          usage,
-        }),
-        {
-          status: 429,
-          headers: { ...corsHeaders, 'Content-Type': 'application/json' },
-        },
-      )
-    }
-
     // ── Input validation ────────────────────────────────────────────
+    // Everything that can answer 4xx is decided here, before the quota gate
+    // below. Consuming a credit first meant a malformed body, an unknown
+    // `type` or an empty chat message still spent one of the caller's ten
+    // daily requests only to be told the request was invalid.
     const KNOWN_TYPES = new Set([
       'chat',
       'generate-wrong-answers',
@@ -130,16 +107,46 @@ Deno.serve(async (req) => {
         .trim()
         .slice(0, max)
     }
+
+    const chatMessage = type === 'chat' ? safeStr(payload?.message) : ''
+    if (type === 'chat' && !chatMessage) {
+      return new Response(JSON.stringify({ error: 'message is required' }), {
+        status: 400,
+        headers: { ...corsHeaders, 'Content-Type': 'application/json' },
+      })
+    }
     // ───────────────────────────────────────────────────────────────
 
-    if (type === 'chat') {
-      const message = safeStr(payload?.message)
-      if (!message) {
-        return new Response(JSON.stringify({ error: 'message is required' }), {
-          status: 400,
+    // Daily usage gate. Enforced atomically per tier before any OpenAI call,
+    // and only once the request is known to be one we will actually serve.
+    const { data: usageRows, error: usageError } = await supabase.rpc('consume_ai_request_quota', {
+      p_user_id: userData.user.id,
+    })
+
+    if (usageError) {
+      console.error('consume_ai_request_quota failed', usageError)
+      return new Response(JSON.stringify({ error: 'QUOTA_CHECK_FAILED' }), {
+        status: 500,
+        headers: { ...corsHeaders, 'Content-Type': 'application/json' },
+      })
+    }
+
+    const usage = usageRows?.[0]
+    if (!usage?.allowed) {
+      return new Response(
+        JSON.stringify({
+          error: 'AI_DAILY_LIMIT_REACHED',
+          message: 'Daily AI limit reached for your current plan.',
+          usage,
+        }),
+        {
+          status: 429,
           headers: { ...corsHeaders, 'Content-Type': 'application/json' },
-        })
-      }
+        },
+      )
+    }
+
+    if (type === 'chat') {
       const words = (Array.isArray(payload?.words) ? payload.words : []).slice(0, MAX_WORDS)
       const wordSummary = words
         .map(
@@ -155,7 +162,7 @@ Deno.serve(async (req) => {
       const text = await openAiCompletion(
         [
           { role: 'system', content: systemPrompt },
-          { role: 'user', content: message },
+          { role: 'user', content: chatMessage },
         ],
         { temperature: 0.5 },
       )
@@ -275,7 +282,12 @@ Deno.serve(async (req) => {
       headers: { ...corsHeaders, 'Content-Type': 'application/json' },
     })
   } catch (error) {
-    return new Response(JSON.stringify({ error: String(error) }), {
+    // `openAiCompletion` throws with OpenAI's raw response body, and the
+    // JSON.parse calls above throw with a fragment of the model output.
+    // Neither belongs in a response to the browser -- log it and answer
+    // with a fixed string the client can map to its own message.
+    console.error('ai-chat failed', error)
+    return new Response(JSON.stringify({ error: 'AI_REQUEST_FAILED' }), {
       status: 500,
       headers: { ...corsHeaders, 'Content-Type': 'application/json' },
     })

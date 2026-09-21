@@ -23,7 +23,9 @@ const DICTS: Record<Lang, Partial<Dict>> = { bg, en, es, zh, fr, de }
 export const DEFAULT_LANG: Lang = 'bg'
 
 export function isLang(value: unknown): value is Lang {
-  return typeof value === 'string' && value in DICTS
+  // `in` walks the prototype chain, so 'constructor', 'toString' and friends
+  // would pass -- and a stored `appSettings.language` is user-writable data.
+  return typeof value === 'string' && Object.hasOwn(DICTS, value)
 }
 
 export function getInitialLang(): Lang {
