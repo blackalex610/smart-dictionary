@@ -4,9 +4,10 @@ import { Button } from '@/components/ui/Button'
 import { useToast } from '@/components/ui/Toast'
 import { FlashcardModal } from '@/features/flashcards/FlashcardModal'
 import { WordPicker } from '@/features/shared/WordPicker'
+import { useAppAction } from '@/context/AppActionsContext'
 import { useT } from '@/context/I18nContext'
 import { useWords } from '@/hooks/useWords'
-import { shuffle } from '@/lib/shuffle'
+import { sample, shuffle } from '@/lib/shuffle'
 import type { Word } from '@/types/domain'
 
 export function FlashcardsPage() {
@@ -16,6 +17,15 @@ export function FlashcardsPage() {
 
   const [selected, setSelected] = useState<Set<string>>(new Set())
   const [deck, setDeck] = useState<Word[] | null>(null)
+
+  // A `start-flashcards` directive from the chat assistant lands here. With no
+  // selection of its own it practises the whole dictionary.
+  useAppAction('start-flashcards', (action) => {
+    const chosen = words.filter((word) => selected.has(word.id))
+    const pool = chosen.length > 0 ? chosen : words
+    if (pool.length === 0) return
+    setDeck(action.count ? sample(pool, action.count) : shuffle(pool))
+  })
 
   const start = () => {
     const chosen = words.filter((word) => selected.has(word.id))

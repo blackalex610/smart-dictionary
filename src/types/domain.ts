@@ -57,6 +57,15 @@ export function isQuizType(v: unknown): v is QuizType {
   return typeof v === 'string' && (QUIZ_TYPES as readonly string[]).includes(v)
 }
 
+export const DIFFICULTIES = ['easy', 'medium', 'hard'] as const
+export type Difficulty = (typeof DIFFICULTIES)[number]
+
+export function isDifficulty(v: unknown): v is Difficulty {
+  return typeof v === 'string' && (DIFFICULTIES as readonly string[]).includes(v)
+}
+
+export const DEFAULT_DIFFICULTY: Difficulty = 'medium'
+
 export interface QuizResult {
   id: string
   quizType: QuizType

@@ -1,6 +1,6 @@
 import { supabase } from './client'
 import { AiDailyLimitError } from '@/lib/errors'
-import type { PartOfSpeech, Word } from '@/types/domain'
+import type { Difficulty, PartOfSpeech, Word } from '@/types/domain'
 
 export type AiType =
   | 'chat'
@@ -54,46 +54,83 @@ function toContext(words: Word[]) {
   }))
 }
 
-export function aiChat(message: string, words: Word[]) {
-  return invokeAi<{ response: string }>('chat', { message, words: toContext(words) })
+/** Prior turns the assistant should stay aware of, oldest first. */
+export interface ChatTurn {
+  role: 'user' | 'assistant'
+  content: string
 }
 
-export function aiWrongAnswers(word: string, definition: string, partOfSpeech: PartOfSpeech) {
+/** Enough context to stay coherent without blowing up the prompt. */
+const MAX_HISTORY_TURNS = 12
+
+export function aiChat(message: string, words: Word[], history: ChatTurn[] = []) {
+  return invokeAi<{ response: string }>('chat', {
+    message,
+    words: toContext(words),
+    history: history.slice(-MAX_HISTORY_TURNS),
+  })
+}
+
+export function aiWrongAnswers(
+  word: string,
+  definition: string,
+  partOfSpeech: PartOfSpeech,
+  difficulty: Difficulty,
+) {
   return invokeAi<{ correctAnswer: string; wrongAnswers: string[] }>('generate-wrong-answers', {
     word,
     definition,
     partOfSpeech,
+    difficulty,
   })
 }
 
-export function aiReadingComprehension(words: string[], questionCount: number) {
+export function aiReadingComprehension(
+  words: string[],
+  questionCount: number,
+  difficulty: Difficulty,
+) {
   return invokeAi<{ content: string }>('generate-reading-comprehension', {
     words,
     questionCount,
+    difficulty,
   })
 }
 
-export function aiOpenClause(word: string, definition: string, partOfSpeech: PartOfSpeech) {
+export function aiOpenClause(
+  word: string,
+  definition: string,
+  partOfSpeech: PartOfSpeech,
+  difficulty: Difficulty,
+) {
   return invokeAi<{ question: string; answer: string }>('generate-open-clause', {
     word,
     definition,
     partOfSpeech,
+    difficulty,
   })
 }
 
-export function aiGapFill(word: string, definition: string, partOfSpeech: PartOfSpeech) {
+export function aiGapFill(
+  word: string,
+  definition: string,
+  partOfSpeech: PartOfSpeech,
+  difficulty: Difficulty,
+) {
   return invokeAi<{ sentence: string; answer: string }>('generate-gap-fill', {
     word,
     definition,
     partOfSpeech,
+    difficulty,
   })
 }
 
-export function aiGapFillVerbForm(word: string, definition: string) {
+export function aiGapFillVerbForm(word: string, definition: string, difficulty: Difficulty) {
   return invokeAi<{ sentence: string; answer: string }>('generate-gap-fill-verb-form', {
     word,
     definition,
     partOfSpeech: 'verb',
+    difficulty,
   })
 }
 

@@ -1,4 +1,4 @@
-import type { QuizType, Word } from '@/types/domain'
+import type { Difficulty, QuizType, Word } from '@/types/domain'
 
 export interface ChoiceQuestion {
   kind: 'choice'
@@ -28,6 +28,7 @@ export interface QuizSession {
   /** Reading comprehension only. */
   passage?: string
   words: Word[]
+  difficulty: Difficulty
   /** True when the daily AI quota ran out mid-generation. */
   quotaReached: boolean
   /** Questions that fell back to locally generated content. */

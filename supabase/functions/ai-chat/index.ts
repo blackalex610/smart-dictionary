@@ -1,23 +1,36 @@
 import { createClient } from 'https://esm.sh/@supabase/supabase-js@2'
 import { corsHeaders } from '../_shared/cors.ts'
 
-const OPENAI_API_KEY = Deno.env.get('OPENAI_API_KEY')
-const OPENAI_MODEL = Deno.env.get('OPENAI_MODEL') ?? 'gpt-4o-mini'
+const OPENROUTER_API_KEY = Deno.env.get('OPENROUTER_API_KEY')
+const OPENROUTER_SITE_URL = Deno.env.get('OPENROUTER_SITE_URL') ?? 'https://umenrechnik.app'
+const OPENROUTER_APP_NAME = Deno.env.get('OPENROUTER_APP_NAME') ?? 'Smart Dictionary'
 const SUPABASE_URL = Deno.env.get('SUPABASE_URL')!
 const SUPABASE_ANON_KEY = Deno.env.get('SUPABASE_ANON_KEY')!
 
-async function openAiCompletion(
-  messages: Array<{ role: 'system' | 'user'; content: string }>,
+// Per-function model routing (all served through OpenRouter). `FALLBACK` is
+// used as a second attempt whenever a task's primary model call fails.
+const MODELS = {
+  chat: 'deepseek/deepseek-v4.1-flash',
+  quiz: 'z-ai/glm-5.3-flash',
+  extraction: 'z-ai/glm-5.3-flash',
+  fallback: 'z-ai/glm-5.3',
+} as const
+
+async function openRouterRequest(
+  model: string,
+  messages: Array<{ role: 'system' | 'user' | 'assistant'; content: string }>,
   opts: { temperature?: number; responseFormatJson?: boolean } = {},
 ) {
-  const aiRes = await fetch('https://api.openai.com/v1/chat/completions', {
+  const aiRes = await fetch('https://openrouter.ai/api/v1/chat/completions', {
     method: 'POST',
     headers: {
-      Authorization: `Bearer ${OPENAI_API_KEY}`,
+      Authorization: `Bearer ${OPENROUTER_API_KEY}`,
       'Content-Type': 'application/json',
+      'HTTP-Referer': OPENROUTER_SITE_URL,
+      'X-Title': OPENROUTER_APP_NAME,
     },
     body: JSON.stringify({
-      model: OPENAI_MODEL,
+      model,
       temperature: opts.temperature ?? 0.5,
       ...(opts.responseFormatJson ? { response_format: { type: 'json_object' } } : {}),
       messages,
@@ -33,14 +46,32 @@ async function openAiCompletion(
   return aiJson?.choices?.[0]?.message?.content ?? ''
 }
 
+/**
+ * Runs the task on its assigned model; if that call fails for any reason
+ * (rate limit, provider outage, malformed response), retries once against
+ * `MODELS.fallback` before giving up.
+ */
+async function aiCompletion(
+  model: string,
+  messages: Array<{ role: 'system' | 'user' | 'assistant'; content: string }>,
+  opts: { temperature?: number; responseFormatJson?: boolean } = {},
+) {
+  try {
+    return await openRouterRequest(model, messages, opts)
+  } catch {
+    if (model === MODELS.fallback) throw new Error('AI_REQUEST_FAILED')
+    return await openRouterRequest(MODELS.fallback, messages, opts)
+  }
+}
+
 Deno.serve(async (req) => {
   if (req.method === 'OPTIONS') {
     return new Response('ok', { headers: corsHeaders })
   }
 
   try {
-    if (!OPENAI_API_KEY) {
-      return new Response(JSON.stringify({ error: 'OPENAI_API_KEY is not configured' }), {
+    if (!OPENROUTER_API_KEY) {
+      return new Response(JSON.stringify({ error: 'OPENROUTER_API_KEY is not configured' }), {
         status: 500,
         headers: { ...corsHeaders, 'Content-Type': 'application/json' },
       })
@@ -66,7 +97,7 @@ Deno.serve(async (req) => {
       })
     }
 
-    // Daily usage gate. Enforced atomically per tier before any OpenAI call.
+    // Daily usage gate. Enforced atomically per tier before any AI call.
     const { data: usageRows, error: usageError } = await supabase.rpc('consume_ai_request_quota', {
       p_user_id: userData.user.id,
     })
@@ -130,6 +161,19 @@ Deno.serve(async (req) => {
         .trim()
         .slice(0, max)
     }
+
+    // Difficulty tunes how close the distractors / sentences sit to the target.
+    const DIFFICULTY_HINTS: Record<string, string> = {
+      easy: 'Aim at a beginner learner: use short, common vocabulary and make the distractors clearly unrelated to the target meaning.',
+      medium:
+        'Aim at an intermediate learner: use everyday vocabulary and make the distractors plausible but clearly distinguishable.',
+      hard: 'Aim at an advanced learner: use richer vocabulary and make the distractors contextually similar to the correct answer but fundamentally different in meaning.',
+    }
+
+    function difficultyHint(v: unknown): string {
+      const key = String(v ?? '').toLowerCase()
+      return DIFFICULTY_HINTS[key] ?? DIFFICULTY_HINTS.medium
+    }
     // ───────────────────────────────────────────────────────────────
 
     if (type === 'chat') {
@@ -152,7 +196,8 @@ Deno.serve(async (req) => {
         'You are a helpful language-learning assistant. Use dictionary context only when relevant.\n\n' +
         `User dictionary:\n${wordSummary}`
 
-      const text = await openAiCompletion(
+      const text = await aiCompletion(
+        MODELS.chat,
         [
           { role: 'system', content: systemPrompt },
           { role: 'user', content: message },
@@ -168,9 +213,10 @@ Deno.serve(async (req) => {
     if (type === 'generate-wrong-answers') {
       const word = safeStr(payload?.word, 100)
       const partOfSpeech = safeStr(payload?.partOfSpeech, 50)
-      const prompt = `Generate 1 correct and 3 plausible incorrect definitions for the word "${word}" (${partOfSpeech}). Return JSON only: {"correctAnswer": string, "wrongAnswers": string[]}.`
+      const prompt = `Generate 1 correct and 3 plausible incorrect definitions for the word "${word}" (${partOfSpeech}). ${difficultyHint(payload?.difficulty)} Return JSON only: {"correctAnswer": string, "wrongAnswers": string[]}.`
 
-      const text = await openAiCompletion(
+      const text = await aiCompletion(
+        MODELS.quiz,
         [
           { role: 'system', content: 'You return strict JSON.' },
           { role: 'user', content: prompt },
@@ -189,8 +235,9 @@ Deno.serve(async (req) => {
         .slice(0, MAX_WORDS)
         .map((w: unknown) => safeStr(w, 100))
       const questionCount = Math.min(20, Math.max(1, Number(payload?.questionCount ?? 3)))
-      const prompt = `Create one reading passage in English using these words naturally: ${words.join(', ')}. Then create ${questionCount} multiple-choice questions with options A, B, C, D and provide an answer key. Use this exact structure:\nPassage:\n...\nQuestions:\n1. ...\nA) ...\nB) ...\nC) ...\nD) ...\nAnswers:\n1. A\n2. C`
-      const content = await openAiCompletion(
+      const prompt = `Create one reading passage in English using these words naturally: ${words.join(', ')}. Then create ${questionCount} multiple-choice questions with options A, B, C, D and provide an answer key. ${difficultyHint(payload?.difficulty)} Use this exact structure:\nPassage:\n...\nQuestions:\n1. ...\nA) ...\nB) ...\nC) ...\nD) ...\nAnswers:\n1. A\n2. C`
+      const content = await aiCompletion(
+        MODELS.quiz,
         [
           {
             role: 'system',
@@ -208,8 +255,9 @@ Deno.serve(async (req) => {
     if (type === 'generate-open-clause') {
       const word = safeStr(payload?.word, 100)
       const definition = safeStr(payload?.definition)
-      const prompt = `Return JSON only with keys question and answer. Build a short open question where the answer must be the word "${word}" and uses definition: "${definition}".`
-      const text = await openAiCompletion(
+      const prompt = `Return JSON only with keys question and answer. Build a short open question where the answer must be the word "${word}" and uses definition: "${definition}". ${difficultyHint(payload?.difficulty)}`
+      const text = await aiCompletion(
+        MODELS.quiz,
         [
           { role: 'system', content: 'You return strict JSON.' },
           { role: 'user', content: prompt },
@@ -224,8 +272,9 @@ Deno.serve(async (req) => {
     if (type === 'generate-gap-fill') {
       const word = safeStr(payload?.word, 100)
       const definition = safeStr(payload?.definition)
-      const prompt = `Return JSON only with keys sentence and answer. Create one sentence with a blank ____ where answer is "${word}". Use definition context: "${definition}".`
-      const text = await openAiCompletion(
+      const prompt = `Return JSON only with keys sentence and answer. Create one sentence with a blank ____ where answer is "${word}". Use definition context: "${definition}". ${difficultyHint(payload?.difficulty)}`
+      const text = await aiCompletion(
+        MODELS.quiz,
         [
           { role: 'system', content: 'You return strict JSON.' },
           { role: 'user', content: prompt },
@@ -240,8 +289,9 @@ Deno.serve(async (req) => {
     if (type === 'generate-gap-fill-verb-form') {
       const word = safeStr(payload?.word, 100)
       const definition = safeStr(payload?.definition)
-      const prompt = `Return JSON only with keys sentence and answer. Create one sentence with blank ____ that requires a correct verb form derived from "${word}". Use definition context: "${definition}".`
-      const text = await openAiCompletion(
+      const prompt = `Return JSON only with keys sentence and answer. Create one sentence with blank ____ that requires a correct verb form derived from "${word}". Use definition context: "${definition}". ${difficultyHint(payload?.difficulty)}`
+      const text = await aiCompletion(
+        MODELS.quiz,
         [
           { role: 'system', content: 'You return strict JSON.' },
           { role: 'user', content: prompt },
@@ -258,7 +308,8 @@ Deno.serve(async (req) => {
       const prompt =
         'You will receive unstructured dictionary entries in English or Bulgarian. Return clean CSV-like lines with format word,definition,part of speech. No header. One per line. Part of speech must be one of noun, verb, adjective, adverb. If missing, infer it. If part of speech is Bulgarian, translate it. Keep original language for word/definition.\n\nInput:\n' +
         rawText
-      const content = await openAiCompletion(
+      const content = await aiCompletion(
+        MODELS.extraction,
         [
           { role: 'system', content: 'You clean dictionary lists.' },
           { role: 'user', content: prompt },

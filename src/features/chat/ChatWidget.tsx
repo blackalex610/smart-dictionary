@@ -1,18 +1,30 @@
 import { useEffect, useRef, useState } from 'react'
 import { MessageCircle, Send, X } from 'lucide-react'
+import { useAppActions } from '@/context/AppActionsContext'
 import { useAuth } from '@/context/AuthContext'
 import { useT } from '@/context/I18nContext'
 import { useRefreshAiUsage } from '@/hooks/useAiUsage'
 import { useWords } from '@/hooks/useWords'
 import { AiDailyLimitError } from '@/lib/errors'
-import { aiChat } from '@/lib/supabase/ai'
+import { aiChat, type ChatTurn } from '@/lib/supabase/ai'
 import { cn } from '@/lib/cn'
+import { parseChatReply, type ChatAction } from './actions'
+import type { TranslationKey } from '@/i18n'
 
 interface Message {
   id: number
   role: 'user' | 'assistant'
   content: string
   pending?: boolean
+  /** Rendered under the bubble when the assistant acted on the app. */
+  actionNote?: string
+}
+
+const ACTION_NOTES: Record<ChatAction['kind'], TranslationKey> = {
+  'start-quiz': 'chat-action-quiz',
+  'start-flashcards': 'chat-action-flashcards',
+  open: 'chat-action-open',
+  'add-word': 'chat-action-add-word',
 }
 
 export function ChatWidget() {
@@ -20,6 +32,7 @@ export function ChatWidget() {
   const { state } = useAuth()
   const { data: words = [] } = useWords()
   const refreshUsage = useRefreshAiUsage()
+  const { dispatch } = useAppActions()
 
   const [open, setOpen] = useState(false)
   const [input, setInput] = useState('')
@@ -65,6 +78,12 @@ export function ChatWidget() {
     const content = input.trim()
     if (!content || sending) return
 
+    // Captured before the new turn is appended: the endpoint takes the prior
+    // exchange as history and the new message separately.
+    const history: ChatTurn[] = messages
+      .filter((message) => !message.pending)
+      .map(({ role, content: text }) => ({ role, content: text }))
+
     push({ role: 'user', content })
     setInput('')
     if (textareaRef.current) textareaRef.current.style.height = 'auto'
@@ -78,14 +97,27 @@ export function ChatWidget() {
     setSending(true)
 
     try {
-      const data = await aiChat(content, words)
+      const data = await aiChat(content, words, history)
+      const { text: reply, actions } = parseChatReply(data.response ?? '')
+      const [action] = actions
+
       setMessages((prev) =>
         prev.map((message) =>
           message.id === pendingId
-            ? { ...message, content: data.response || t('chat-no-response'), pending: false }
+            ? {
+                ...message,
+                content: reply || t('chat-no-response'),
+                pending: false,
+                actionNote: action ? t(ACTION_NOTES[action.kind]) : undefined,
+              }
             : message,
         ),
       )
+
+      if (action) {
+        setOpen(false)
+        dispatch(action)
+      }
     } catch (error) {
       const text = error instanceof AiDailyLimitError ? t('ai-limit-reached') : t('chat-error')
       setMessages((prev) =>
@@ -140,13 +172,22 @@ export function ChatWidget() {
             {messages.map((message) => (
               <div
                 key={message.id}
-                className={cn(
-                  'max-w-[85%] whitespace-pre-line rounded-2xl px-3.5 py-2.5 text-[14px] leading-relaxed',
-                  message.role === 'user' ? 'ml-auto bg-brand text-white' : 'bg-surface-2 text-fg',
-                  message.pending && 'text-fg-subtle',
-                )}
+                className={cn(message.role === 'user' && 'flex flex-col items-end')}
               >
-                {message.content}
+                <div
+                  className={cn(
+                    'max-w-[85%] whitespace-pre-line rounded-2xl px-3.5 py-2.5 text-[14px] leading-relaxed',
+                    message.role === 'user'
+                      ? 'ml-auto bg-brand text-white'
+                      : 'bg-surface-2 text-fg',
+                    message.pending && 'text-fg-subtle',
+                  )}
+                >
+                  {message.content}
+                </div>
+                {message.actionNote && (
+                  <p className="mt-1 text-[12.5px] font-medium text-brand">{message.actionNote}</p>
+                )}
               </div>
             ))}
           </div>

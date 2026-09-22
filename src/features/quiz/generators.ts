@@ -7,7 +7,7 @@ import {
 } from '@/lib/supabase/ai'
 import { AiDailyLimitError } from '@/lib/errors'
 import { sample, shuffle } from '@/lib/shuffle'
-import type { QuizType, Word } from '@/types/domain'
+import type { Difficulty, QuizType, Word } from '@/types/domain'
 import type { ChoiceQuestion, QuizQuestion, QuizSession, TextQuestion } from './types'
 
 /** One AI request per question is expensive; keep three in flight at most. */
@@ -112,6 +112,8 @@ export interface GenerateOptions {
   type: QuizType
   words: Word[]
   questionCount: number
+  /** Passed to the model so it can tune how close the distractors sit. */
+  difficulty: Difficulty
   /** Guests have no Edge Function access — they get locally built questions. */
   useAi: boolean
 }
@@ -124,6 +126,7 @@ export async function generateQuiz({
   type,
   words,
   questionCount,
+  difficulty,
   useAi,
 }: GenerateOptions): Promise<QuizSession> {
   let quotaReached = false
@@ -145,6 +148,7 @@ export async function generateQuiz({
       aiReadingComprehension(
         chosen.map((word) => word.word),
         questionCount,
+        difficulty,
       ),
     )
     if (!data?.content) throw quotaReached ? new AiDailyLimitError() : new ReadingParseError()
@@ -154,6 +158,7 @@ export async function generateQuiz({
       questions: parsed.questions,
       passage: parsed.passage,
       words: chosen,
+      difficulty,
       quotaReached,
       fallbackCount: 0,
     }
@@ -166,7 +171,7 @@ export async function generateQuiz({
     switch (type) {
       case 'multiple': {
         const data = await callAi(() =>
-          aiWrongAnswers(word.word, word.definition, word.partOfSpeech),
+          aiWrongAnswers(word.word, word.definition, word.partOfSpeech, difficulty),
         )
         if (
           !data?.correctAnswer ||
@@ -188,7 +193,9 @@ export async function generateQuiz({
       }
 
       case 'open': {
-        const data = await callAi(() => aiOpenClause(word.word, word.definition, word.partOfSpeech))
+        const data = await callAi(() =>
+          aiOpenClause(word.word, word.definition, word.partOfSpeech, difficulty),
+        )
         if (!data?.question || !data.answer) {
           fallbackCount++
           return localTextQuestion(word, word.definition)
@@ -203,7 +210,9 @@ export async function generateQuiz({
       }
 
       case 'gap': {
-        const data = await callAi(() => aiGapFill(word.word, word.definition, word.partOfSpeech))
+        const data = await callAi(() =>
+          aiGapFill(word.word, word.definition, word.partOfSpeech, difficulty),
+        )
         if (!data?.sentence || !data.answer) {
           fallbackCount++
           return localTextQuestion(word, `____ — ${word.definition}`)
@@ -218,7 +227,7 @@ export async function generateQuiz({
       }
 
       case 'gap-verb-form': {
-        const data = await callAi(() => aiGapFillVerbForm(word.word, word.definition))
+        const data = await callAi(() => aiGapFillVerbForm(word.word, word.definition, difficulty))
         if (!data?.sentence || !data.answer) {
           fallbackCount++
           return localTextQuestion(word, `____ — ${word.definition}`, word.word)
@@ -240,5 +249,5 @@ export async function generateQuiz({
     }
   })
 
-  return { type, questions, words: chosen, quotaReached, fallbackCount }
+  return { type, questions, words: chosen, difficulty, quotaReached, fallbackCount }
 }

@@ -4,6 +4,7 @@ import { Bell, ChevronDown, LogOut, Moon, Sun } from 'lucide-react'
 import { BackToTop } from '@/components/ui/BackToTop'
 import { LogoMark } from '@/components/ui/Logo'
 import { ChatWidget } from '@/features/chat/ChatWidget'
+import { AppActionsProvider } from '@/context/AppActionsContext'
 import { useAuth } from '@/context/AuthContext'
 import { useT } from '@/context/I18nContext'
 import { useTheme } from '@/context/ThemeContext'
@@ -103,60 +104,62 @@ export function AppLayout() {
   const t = useT()
 
   return (
-    <div className="min-h-screen bg-canvas">
-      <header className="sticky top-0 z-30 border-b border-line bg-surface">
-        <div className="relative mx-auto flex h-[68px] max-w-[1440px] items-center justify-between px-8">
-          <NavLink to="/app" className="flex items-center gap-3">
-            <LogoMark />
-            <span className="text-[19px] font-bold tracking-[-0.01em] text-fg">
-              {t('app-name')}
-            </span>
-          </NavLink>
+    <AppActionsProvider>
+      <div className="min-h-screen bg-canvas">
+        <header className="sticky top-0 z-30 border-b border-line bg-surface">
+          <div className="relative mx-auto flex h-[68px] max-w-[1440px] items-center justify-between px-8">
+            <NavLink to="/app" className="flex items-center gap-3">
+              <LogoMark />
+              <span className="text-[19px] font-bold tracking-[-0.01em] text-fg">
+                {t('app-name')}
+              </span>
+            </NavLink>
 
-          <nav className="absolute left-1/2 top-0 hidden h-full -translate-x-1/2 items-center gap-10 md:flex">
-            {NAV.map((item) => (
-              <NavLink
-                key={item.to}
-                to={item.to}
-                end={item.end}
-                className={({ isActive }) =>
-                  cn(
-                    'relative flex h-full items-center text-[15px] font-medium transition-colors',
-                    isActive ? 'text-brand' : 'text-fg-muted hover:text-fg',
-                  )
-                }
+            <nav className="absolute left-1/2 top-0 hidden h-full -translate-x-1/2 items-center gap-10 md:flex">
+              {NAV.map((item) => (
+                <NavLink
+                  key={item.to}
+                  to={item.to}
+                  end={item.end}
+                  className={({ isActive }) =>
+                    cn(
+                      'relative flex h-full items-center text-[15px] font-medium transition-colors',
+                      isActive ? 'text-brand' : 'text-fg-muted hover:text-fg',
+                    )
+                  }
+                >
+                  {({ isActive }) => (
+                    <>
+                      {t(item.key)}
+                      {isActive && (
+                        <span className="absolute inset-x-0 bottom-0 h-[2.5px] rounded-t-full bg-brand" />
+                      )}
+                    </>
+                  )}
+                </NavLink>
+              ))}
+            </nav>
+
+            <div className="flex items-center gap-3">
+              <button
+                type="button"
+                className="rounded-lg p-2 text-fg-muted transition hover:bg-surface-2 hover:text-fg"
+                aria-label={t('notifications')}
               >
-                {({ isActive }) => (
-                  <>
-                    {t(item.key)}
-                    {isActive && (
-                      <span className="absolute inset-x-0 bottom-0 h-[2.5px] rounded-t-full bg-brand" />
-                    )}
-                  </>
-                )}
-              </NavLink>
-            ))}
-          </nav>
-
-          <div className="flex items-center gap-3">
-            <button
-              type="button"
-              className="rounded-lg p-2 text-fg-muted transition hover:bg-surface-2 hover:text-fg"
-              aria-label={t('notifications')}
-            >
-              <Bell size={20} />
-            </button>
-            <UserMenu />
+                <Bell size={20} />
+              </button>
+              <UserMenu />
+            </div>
           </div>
-        </div>
-      </header>
+        </header>
 
-      <main className="mx-auto max-w-[1440px] px-8 pb-10">
-        <Outlet />
-      </main>
+        <main className="mx-auto max-w-[1440px] px-8 pb-10">
+          <Outlet />
+        </main>
 
-      <BackToTop />
-      <ChatWidget />
-    </div>
+        <BackToTop />
+        <ChatWidget />
+      </div>
+    </AppActionsProvider>
   )
 }

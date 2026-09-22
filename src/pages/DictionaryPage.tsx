@@ -11,6 +11,7 @@ import { NewFolderDialog } from '@/features/dictionary/NewFolderDialog'
 import { SearchBar } from '@/features/dictionary/SearchBar'
 import { WordList } from '@/features/dictionary/WordList'
 import { useToast } from '@/components/ui/Toast'
+import { useAppAction } from '@/context/AppActionsContext'
 import { useT } from '@/context/I18nContext'
 import { useCustomFolders } from '@/hooks/useCustomFolders'
 import { useDictionaryFilters } from '@/hooks/useDictionaryFilters'
@@ -72,6 +73,18 @@ export function DictionaryPage() {
       return false
     }
   }
+
+  // An `add-word` directive from the chat assistant lands here.
+  useAppAction('add-word', (action) => {
+    void handleSubmit({
+      word: action.word,
+      definition: action.definition,
+      partOfSpeech: action.partOfSpeech,
+      example: null,
+      folder: filters.folder ?? DEFAULT_FOLDER,
+      pronunciation: false,
+    })
+  })
 
   const handleDelete = async (word: Word) => {
     setPendingDelete(null)

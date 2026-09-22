@@ -1,4 +1,4 @@
-import { useMemo, useState } from 'react'
+import { useCallback, useMemo, useState } from 'react'
 import { Brain, Play } from 'lucide-react'
 import { Button } from '@/components/ui/Button'
 import { useToast } from '@/components/ui/Toast'
@@ -7,6 +7,7 @@ import { QuizHistoryList } from '@/features/quiz/QuizHistoryList'
 import { QuizRunner } from '@/features/quiz/QuizRunner'
 import { generateQuiz, ReadingParseError } from '@/features/quiz/generators'
 import { WordPicker } from '@/features/shared/WordPicker'
+import { useAppAction } from '@/context/AppActionsContext'
 import { useAuth } from '@/context/AuthContext'
 import { useT } from '@/context/I18nContext'
 import { isQuotaExhausted, useAiUsage, useRefreshAiUsage } from '@/hooks/useAiUsage'
@@ -14,7 +15,13 @@ import { useQuizHistory, useSaveQuizResult } from '@/hooks/useQuizHistory'
 import { useWords } from '@/hooks/useWords'
 import { AiDailyLimitError } from '@/lib/errors'
 import { cn } from '@/lib/cn'
-import { QUIZ_TYPES, type QuizType } from '@/types/domain'
+import {
+  DEFAULT_DIFFICULTY,
+  DIFFICULTIES,
+  QUIZ_TYPES,
+  type Difficulty,
+  type QuizType,
+} from '@/types/domain'
 import type { QuizGrade, QuizSession } from '@/features/quiz/types'
 import type { TranslationKey } from '@/i18n'
 
@@ -38,6 +45,7 @@ export function TestsPage() {
   const saveResult = useSaveQuizResult()
 
   const [type, setType] = useState<QuizType>('multiple')
+  const [difficulty, setDifficulty] = useState<Difficulty>(DEFAULT_DIFFICULTY)
   const [questionCount, setQuestionCount] = useState(10)
   const [selected, setSelected] = useState<Set<string>>(new Set())
   const [generating, setGenerating] = useState(false)
@@ -46,48 +54,86 @@ export function TestsPage() {
   const isAuthenticated = state.status === 'authenticated'
   const restrictTo = type === 'gap-verb-form' ? ('verb' as const) : undefined
 
-  const selectedWords = useMemo(() => {
-    const chosen = words.filter((word) => selected.has(word.id))
-    return restrictTo ? chosen.filter((word) => word.partOfSpeech === restrictTo) : chosen
-  }, [words, selected, restrictTo])
+  const chosenWords = useMemo(
+    () => words.filter((word) => selected.has(word.id)),
+    [words, selected],
+  )
+  const verbWords = useMemo(
+    () => chosenWords.filter((word) => word.partOfSpeech === 'verb'),
+    [chosenWords],
+  )
+  const selectedWords = restrictTo ? verbWords : chosenWords
 
   const quotaExhausted = isAuthenticated && isQuotaExhausted(usage)
   const enough = selectedWords.length >= MIN_WORDS[type]
 
-  const start = async () => {
-    if (!enough) {
-      toast.push(t('err-need-words', { n: MIN_WORDS[type] }), 'error')
-      return
-    }
-
-    setGenerating(true)
-    try {
-      const built = await generateQuiz({
-        type,
-        words: selectedWords,
-        questionCount: Math.max(1, Math.min(questionCount, 20)),
-        useAi: isAuthenticated && !quotaExhausted,
-      })
-
-      if (built.questions.length === 0) {
-        toast.push(t('err-quiz-generate'), 'error')
+  const start = useCallback(
+    async (override?: { type?: QuizType; count?: number; difficulty?: Difficulty }) => {
+      const quizType = override?.type ?? type
+      // A quiz launched from the chat should just work, so it falls back to the
+      // whole dictionary when the user has not picked anything yet.
+      const base = chosenWords.length > 0 || !override ? chosenWords : words
+      const pool =
+        quizType === 'gap-verb-form' ? base.filter((word) => word.partOfSpeech === 'verb') : base
+      if (pool.length < MIN_WORDS[quizType]) {
+        toast.push(t('err-need-words', { n: MIN_WORDS[quizType] }), 'error')
         return
       }
-      if (built.quotaReached) toast.push(t('ai-limit-reached'), 'error')
-      else if (built.fallbackCount > 0) {
-        toast.push(t('quiz-fallback-notice', { n: built.fallbackCount }), 'info')
-      }
 
-      setSession(built)
-    } catch (error) {
-      if (error instanceof AiDailyLimitError) toast.push(t('ai-limit-reached'), 'error')
-      else if (error instanceof ReadingParseError) toast.push(t('err-reading-quiz'), 'error')
-      else toast.push(t('err-quiz-generate'), 'error')
-    } finally {
-      setGenerating(false)
-      if (isAuthenticated) refreshUsage()
-    }
-  }
+      setGenerating(true)
+      try {
+        const built = await generateQuiz({
+          type: quizType,
+          words: pool,
+          questionCount: Math.max(1, Math.min(override?.count ?? questionCount, 20)),
+          difficulty: override?.difficulty ?? difficulty,
+          useAi: isAuthenticated && !quotaExhausted,
+        })
+
+        if (built.questions.length === 0) {
+          toast.push(t('err-quiz-generate'), 'error')
+          return
+        }
+        if (built.quotaReached) toast.push(t('ai-limit-reached'), 'error')
+        else if (built.fallbackCount > 0) {
+          toast.push(t('quiz-fallback-notice', { n: built.fallbackCount }), 'info')
+        }
+
+        setSession(built)
+      } catch (error) {
+        if (error instanceof AiDailyLimitError) toast.push(t('ai-limit-reached'), 'error')
+        else if (error instanceof ReadingParseError) toast.push(t('err-reading-quiz'), 'error')
+        else toast.push(t('err-quiz-generate'), 'error')
+      } finally {
+        setGenerating(false)
+        if (isAuthenticated) refreshUsage()
+      }
+    },
+    [
+      type,
+      words,
+      chosenWords,
+      questionCount,
+      difficulty,
+      isAuthenticated,
+      quotaExhausted,
+      refreshUsage,
+      t,
+      toast,
+    ],
+  )
+
+  // A `start-quiz` directive from the chat assistant lands here.
+  useAppAction('start-quiz', (action) => {
+    setType(action.quizType)
+    setDifficulty(action.difficulty)
+    setQuestionCount(action.count)
+    void start({
+      type: action.quizType,
+      count: action.count,
+      difficulty: action.difficulty,
+    })
+  })
 
   const finish = (grade: QuizGrade) => {
     if (!session) return
@@ -114,7 +160,7 @@ export function TestsPage() {
         </div>
         <Button
           size="lg"
-          onClick={start}
+          onClick={() => void start()}
           loading={generating}
           disabled={isLoading || words.length === 0 || generating}
         >
@@ -158,6 +204,38 @@ export function TestsPage() {
                 </label>
               ))}
             </div>
+          </fieldset>
+
+          <fieldset className="mt-5">
+            <legend className="text-[15px] font-semibold text-fg">{t('difficulty-label')}</legend>
+            <div className="mt-3 flex flex-wrap gap-2">
+              {DIFFICULTIES.map((value) => (
+                <label
+                  key={value}
+                  className={cn(
+                    'flex cursor-pointer items-center gap-2 rounded-xl border px-3.5 py-2.5 transition',
+                    difficulty === value
+                      ? 'border-brand bg-brand-soft'
+                      : 'border-line hover:bg-surface-2',
+                  )}
+                >
+                  <input
+                    type="radio"
+                    name="difficulty"
+                    value={value}
+                    checked={difficulty === value}
+                    onChange={() => setDifficulty(value)}
+                    className="h-[16px] w-[16px] border-line text-brand focus:ring-brand"
+                  />
+                  <span className="text-[14.5px] font-medium text-fg">
+                    {t(`difficulty-${value}` as TranslationKey)}
+                  </span>
+                </label>
+              ))}
+            </div>
+            <p className="mt-2 text-[12.5px] text-fg-muted">
+              {t(`difficulty-${difficulty}-hint` as TranslationKey)}
+            </p>
           </fieldset>
 
           <div className="mt-5 flex flex-wrap items-center gap-3">
