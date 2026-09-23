@@ -1,0 +1,63 @@
+name: Database backup
+
+# There is no automated backup on this project today (confirmed via
+# `supabase backups list`: walg_enabled but pitr_enabled: false, zero backups
+# recorded) — docs/DEPLOYMENT.md has always recommended a scheduled
+# `supabase db dump` here, but nothing ran it. This does.
+#
+# One-time setup required (cannot be done from a workflow file):
+#   1. Supabase dashboard -> Account -> Access Tokens -> generate a token.
+#   2. This repo's Settings -> Secrets and variables -> Actions -> New repository
+#      secret, name it SUPABASE_ACCESS_TOKEN, paste the token.
+# Without that secret this workflow will fail at the `supabase link` step.
+#
+# Retention here is GitHub Actions artifact storage (90 days), which is a
+# real improvement over zero backups but is not off-platform. For anything
+# beyond a solo-project safety net, enable PITR on a paid Supabase plan
+# instead (supabase.com/dashboard/project/_/settings/database -> Backups).
+
+on:
+  schedule:
+    - cron: '17 3 * * *' # daily, 03:17 UTC — off the hour to avoid pile-ups
+  workflow_dispatch: {}
+
+env:
+  SUPABASE_PROJECT_REF: rylhgdjmjcaqcuyxybtd
+
+jobs:
+  dump:
+    name: dump schema + data
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/setup-node@v4
+        with:
+          node-version: lts/*
+
+      - name: Link project
+        env:
+          SUPABASE_ACCESS_TOKEN: ${{ secrets.SUPABASE_ACCESS_TOKEN }}
+        run: npx --yes supabase link --project-ref "$SUPABASE_PROJECT_REF"
+
+      - name: Dump schema
+        env:
+          SUPABASE_ACCESS_TOKEN: ${{ secrets.SUPABASE_ACCESS_TOKEN }}
+        run: npx --yes supabase db dump -f schema.sql
+
+      - name: Dump data
+        env:
+          SUPABASE_ACCESS_TOKEN: ${{ secrets.SUPABASE_ACCESS_TOKEN }}
+        run: npx --yes supabase db dump --data-only -f data.sql
+
+      - name: Compress
+        run: |
+          gzip schema.sql data.sql
+
+      - uses: actions/upload-artifact@v4
+        with:
+          name: db-backup-${{ github.run_id }}
+          path: |
+            schema.sql.gz
+            data.sql.gz
+          retention-days: 90
