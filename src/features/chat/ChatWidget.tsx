@@ -5,7 +5,7 @@ import { useAuth } from '@/context/AuthContext'
 import { useT } from '@/context/I18nContext'
 import { useRefreshAiUsage } from '@/hooks/useAiUsage'
 import { useWords } from '@/hooks/useWords'
-import { AiDailyLimitError } from '@/lib/errors'
+import { errorMessageKey } from '@/lib/errors'
 import { aiChat, type ChatTurn } from '@/lib/supabase/ai'
 import { cn } from '@/lib/cn'
 import { parseChatReply, type ChatAction } from './actions'
@@ -19,6 +19,8 @@ interface Message {
   /** Rendered under the bubble when the assistant acted on the app. */
   actionNote?: string
 }
+
+const MAX_VISIBLE_MESSAGES = 100
 
 const ACTION_NOTES: Record<ChatAction['kind'], TranslationKey> = {
   'start-quiz': 'chat-action-quiz',
@@ -70,7 +72,8 @@ export function ChatWidget() {
 
   const push = (message: Omit<Message, 'id'>): number => {
     const id = nextId.current++
-    setMessages((prev) => [...prev, { ...message, id }])
+    // Only the last 12 turns are sent as context; keep a little more on screen.
+    setMessages((prev) => [...prev.slice(-(MAX_VISIBLE_MESSAGES - 1)), { ...message, id }])
     return id
   }
 
@@ -119,7 +122,8 @@ export function ChatWidget() {
         dispatch(action)
       }
     } catch (error) {
-      const text = error instanceof AiDailyLimitError ? t('ai-limit-reached') : t('chat-error')
+      const key = errorMessageKey(error)
+      const text = key === 'err-generic' ? t('chat-error') : t(key)
       setMessages((prev) =>
         prev.map((message) =>
           message.id === pendingId ? { ...message, content: text, pending: false } : message,
@@ -163,7 +167,12 @@ export function ChatWidget() {
             </button>
           </header>
 
-          <div ref={listRef} className="flex-1 space-y-3 overflow-y-auto scrollbar-slim px-4 py-4">
+          <div
+            ref={listRef}
+            role="log"
+            aria-live="polite"
+            className="flex-1 space-y-3 overflow-y-auto scrollbar-slim px-4 py-4"
+          >
             {messages.length === 0 && (
               <p className="mt-6 text-center text-[13.5px] leading-relaxed text-fg-muted">
                 {t('chat-empty')}
@@ -197,6 +206,8 @@ export function ChatWidget() {
               ref={textareaRef}
               rows={1}
               value={input}
+              maxLength={2000}
+              aria-label={t('chat-placeholder')}
               placeholder={t('chat-placeholder')}
               onChange={(event) => {
                 setInput(event.target.value)

@@ -1,0 +1,6 @@
+# Normalise to LF everywhere so Prettier (endOfLine: lf) passes on Windows
+# checkouts too, not only in CI.
+* text=auto eol=lf
+*.png binary
+*.ico binary
+*.woff2 binary

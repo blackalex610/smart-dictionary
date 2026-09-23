@@ -4,7 +4,13 @@ import { fileURLToPath } from 'node:url'
 
 export default defineConfig({
   plugins: [react()],
-  resolve: { alias: { '@': fileURLToPath(new URL('./src', import.meta.url)) } },
+  resolve: {
+    alias: {
+      '@': fileURLToPath(new URL('./src', import.meta.url)),
+      // Pure-TS modules shared with the Edge Functions (no Deno APIs).
+      '@shared': fileURLToPath(new URL('./supabase/functions/_shared', import.meta.url)),
+    },
+  },
   test: {
     environment: 'jsdom',
     environmentOptions: { jsdom: { url: 'http://localhost:3000/' } },

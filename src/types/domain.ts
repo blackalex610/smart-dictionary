@@ -29,7 +29,8 @@ export interface WordsBackend {
   create(input: NewWord): Promise<Word>
   update(id: string, patch: Partial<NewWord>): Promise<Word>
   remove(id: string): Promise<void>
-  replaceAll(words: Word[]): Promise<void>
+  /** Deletes every word the current user owns. */
+  clear(): Promise<void>
 }
 
 export type SortOrder = 'newest' | 'oldest' | 'az' | 'za'

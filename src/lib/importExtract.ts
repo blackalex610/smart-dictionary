@@ -11,8 +11,17 @@ export const IMPORT_ACCEPT =
   'application/vnd.openxmlformats-officedocument.wordprocessingml.document,' +
   'text/html,application/xml,text/xml'
 
+/** Uploads are hostile until proven otherwise; these bound the work we do. */
+export const MAX_IMPORT_FILE_BYTES = 5 * 1024 * 1024
+/** A .docx is a zip — cap what it may inflate to (zip-bomb guard). */
+export const MAX_INFLATED_BYTES = 20 * 1024 * 1024
+/** Far more text than an import can use; keeps later passes cheap. */
+export const MAX_EXTRACTED_CHARS = 500_000
+
+export type UnreadableReason = 'empty' | 'unsupported' | 'corrupt' | 'too-large'
+
 export class UnreadableFileError extends Error {
-  constructor(public readonly reason: 'empty' | 'unsupported' | 'corrupt') {
+  constructor(public readonly reason: UnreadableReason) {
     super(`UNREADABLE_FILE_${reason.toUpperCase()}`)
     this.name = 'UnreadableFileError'
   }
@@ -199,6 +208,10 @@ async function inflateRaw(data: Uint8Array): Promise<Uint8Array> {
     if (done) break
     chunks.push(value)
     total += value.length
+    if (total > MAX_INFLATED_BYTES) {
+      await reader.cancel()
+      throw new UnreadableFileError('too-large')
+    }
   }
 
   const out = new Uint8Array(total)
@@ -245,6 +258,7 @@ async function readZipEntry(buffer: ArrayBuffer, name: string): Promise<Uint8Arr
     if (entryName === name) {
       if (u32(view, localOffset) !== 0x04034b50) throw new UnreadableFileError('corrupt')
       const start = localOffset + 30 + u16(view, localOffset + 26) + u16(view, localOffset + 28)
+      if (start + compressedSize > bytes.length) throw new UnreadableFileError('corrupt')
       const data = bytes.subarray(start, start + compressedSize)
       if (method === 0) return data
       if (method === 8) return inflateRaw(data)
@@ -305,9 +319,23 @@ export function extractPrintableRuns(bytes: Uint8Array, minRun = 4): string {
 
 /* ------------------------------------------------------------ dispatch ---- */
 
-type Magic = 'zip' | 'rtf' | 'ole' | 'markup' | null
+type Magic = 'zip' | 'rtf' | 'ole' | 'markup' | 'binary' | null
+
+/** Formats we know we cannot read — better a clear message than garbage. */
+const BINARY_SIGNATURES: number[][] = [
+  [0x25, 0x50, 0x44, 0x46], // %PDF
+  [0x89, 0x50, 0x4e, 0x47], // PNG
+  [0xff, 0xd8, 0xff], // JPEG
+  [0x47, 0x49, 0x46, 0x38], // GIF
+  [0x1f, 0x8b], // gzip
+  [0x52, 0x61, 0x72, 0x21], // RAR
+  [0x37, 0x7a, 0xbc, 0xaf], // 7z
+  [0x4d, 0x5a], // Windows executable
+  [0x7f, 0x45, 0x4c, 0x46], // ELF
+]
 
 function sniff(bytes: Uint8Array): Magic {
+  if (BINARY_SIGNATURES.some((sig) => sig.every((byte, i) => bytes[i] === byte))) return 'binary'
   if (bytes.length >= 4) {
     if (bytes[0] === 0x50 && bytes[1] === 0x4b && bytes[2] === 0x03 && bytes[3] === 0x04) {
       return 'zip'
@@ -328,10 +356,34 @@ export function extensionOf(fileName: string): string {
 }
 
 /**
- * Reads `file` as text. The real format wins over the extension, so a `.doc`
- * that is really a `.docx` (or an `.xml` that is really RTF) still imports.
+ * Plain-text decoding for files that do not declare an encoding: a UTF-16 BOM
+ * wins, valid UTF-8 comes next, and anything else is read as Windows-1251 —
+ * the usual encoding of older Bulgarian text files.
  */
-export async function extractFileText(file: File): Promise<string> {
+export function decodeText(bytes: Uint8Array): string {
+  if (bytes[0] === 0xff && bytes[1] === 0xfe) return new TextDecoder('utf-16le').decode(bytes)
+  if (bytes[0] === 0xfe && bytes[1] === 0xff) return new TextDecoder('utf-16be').decode(bytes)
+  try {
+    return new TextDecoder('utf-8', { fatal: true }).decode(bytes)
+  } catch {
+    try {
+      return new TextDecoder('windows-1251').decode(bytes)
+    } catch {
+      return new TextDecoder('utf-8').decode(bytes)
+    }
+  }
+}
+
+/** NUL bytes in "text" mean we are looking at a binary format. */
+function looksBinary(text: string): boolean {
+  const sample = text.slice(0, 4096)
+  if (!sample) return false
+  let nul = 0
+  for (let i = 0; i < sample.length; i++) if (sample.charCodeAt(i) === 0) nul++
+  return nul / sample.length > 0.01
+}
+
+async function extract(file: File): Promise<string> {
   const buffer = await file.arrayBuffer()
   const bytes = new Uint8Array(buffer)
   if (bytes.length === 0) throw new UnreadableFileError('empty')
@@ -339,16 +391,39 @@ export async function extractFileText(file: File): Promise<string> {
   const magic = sniff(bytes)
   const extension = extensionOf(file.name)
 
+  if (magic === 'binary') throw new UnreadableFileError('unsupported')
   if (magic === 'zip' || (magic === null && extension === 'docx')) return extractDocx(buffer)
   if (magic === 'ole') return extractPrintableRuns(bytes)
 
-  const text = new TextDecoder('utf-8').decode(bytes)
+  const text = decodeText(bytes)
 
   if (magic === 'rtf' || extension === 'rtf') return stripRtf(text)
   if (magic === 'markup' || extension === 'html' || extension === 'htm' || extension === 'xml') {
     return stripMarkup(text)
   }
   if (extension === 'doc') return extractPrintableRuns(bytes)
+  if (looksBinary(text)) throw new UnreadableFileError('unsupported')
 
   return tidy(text)
+}
+
+/**
+ * Reads `file` as text. The real format wins over the extension, so a `.doc`
+ * that is really a `.docx` (or an `.xml` that is really RTF) still imports.
+ * Every failure — including a parser tripping over a malformed file — comes out
+ * as an `UnreadableFileError`; the file is never executed or rendered.
+ */
+export async function extractFileText(file: File): Promise<string> {
+  if (file.size > MAX_IMPORT_FILE_BYTES) throw new UnreadableFileError('too-large')
+
+  let text: string
+  try {
+    text = await extract(file)
+  } catch (error) {
+    if (error instanceof UnreadableFileError) throw error
+    throw new UnreadableFileError('corrupt')
+  }
+
+  if (!text.trim()) throw new UnreadableFileError('empty')
+  return text.length > MAX_EXTRACTED_CHARS ? text.slice(0, MAX_EXTRACTED_CHARS) : text
 }

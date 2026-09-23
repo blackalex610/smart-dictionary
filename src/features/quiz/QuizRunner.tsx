@@ -2,6 +2,7 @@ import { useEffect, useMemo, useRef, useState } from 'react'
 import { X } from 'lucide-react'
 import { Button } from '@/components/ui/Button'
 import { useT } from '@/context/I18nContext'
+import { useDialogFocus } from '@/hooks/useDialogFocus'
 import { cn } from '@/lib/cn'
 import { gradeQuiz, verdictFor } from './grade'
 import type { QuizGrade, QuizQuestion, QuizSession } from './types'
@@ -57,13 +58,17 @@ export function QuizRunner({ session, onClose, onFinished }: Props) {
     onFinished(grade)
   }, [scoreVisible, grade, onFinished])
 
-  useEffect(() => {
-    const previousOverflow = document.body.style.overflow
-    document.body.style.overflow = 'hidden'
-    return () => {
-      document.body.style.overflow = previousOverflow
-    }
-  }, [])
+  const panelRef = useRef<HTMLDivElement>(null)
+  // Escape must not throw away answers the user is in the middle of giving;
+  // the explicit close button still works at any time.
+  useDialogFocus(
+    true,
+    panelRef,
+    () => {
+      if (answeredCount === 0 || grade) onClose()
+    },
+    { initialFocus: 'panel' },
+  )
 
   const submit = (event: React.FormEvent) => {
     event.preventDefault()
@@ -83,8 +88,22 @@ export function QuizRunner({ session, onClose, onFinished }: Props) {
 
   return (
     <div className="fixed inset-0 z-50 overflow-y-auto bg-black/55 p-4 animate-fade-in">
-      <div className="mx-auto my-6 w-full max-w-[760px] overflow-hidden rounded-2xl border border-line bg-surface shadow-pop animate-slide-up">
-        <div className="h-[4px] w-full bg-surface-2">
+      <div
+        ref={panelRef}
+        role="dialog"
+        aria-modal="true"
+        aria-labelledby="quiz-title"
+        tabIndex={-1}
+        className="mx-auto my-6 w-full max-w-[760px] overflow-hidden rounded-2xl border border-line bg-surface shadow-pop animate-slide-up focus:outline-none"
+      >
+        <div
+          className="h-[4px] w-full bg-surface-2"
+          role="progressbar"
+          aria-valuemin={0}
+          aria-valuemax={questions.length}
+          aria-valuenow={grade ? questions.length : answeredCount}
+          aria-label={t('question-n', { n: answeredCount })}
+        >
           <div
             className="h-full bg-brand transition-[width] duration-300"
             style={{ width: `${grade ? 100 : progress}%` }}
@@ -93,7 +112,7 @@ export function QuizRunner({ session, onClose, onFinished }: Props) {
 
         <div className="flex items-start justify-between gap-4 px-6 pt-5">
           <div>
-            <h2 className="text-[20px] font-bold tracking-[-0.01em] text-fg">
+            <h2 id="quiz-title" className="text-[20px] font-bold tracking-[-0.01em] text-fg">
               {t(`quiz-type-${session.type}` as TranslationKey)}
             </h2>
             <p className="mt-1 text-[14px] text-fg-muted">
@@ -143,12 +162,19 @@ export function QuizRunner({ session, onClose, onFinished }: Props) {
 
                   {question.kind === 'choice' ? (
                     <>
-                      <p className="mt-1.5 text-[15.5px] font-medium text-fg">
+                      <p
+                        id={`quiz-q-${index}`}
+                        className="mt-1.5 break-words text-[15.5px] font-medium text-fg"
+                      >
                         {question.word
                           ? t('quiz-what-means', { word: question.word })
                           : question.prompt}
                       </p>
-                      <div className="mt-3 flex flex-col gap-2">
+                      <div
+                        role="radiogroup"
+                        aria-labelledby={`quiz-q-${index}`}
+                        className="mt-3 flex flex-col gap-2"
+                      >
                         {question.options.map((option, optionIndex) => {
                           const chosen = answers[question.id] === String(optionIndex)
                           const isRight = result && optionIndex === question.correctIndex
@@ -177,7 +203,7 @@ export function QuizRunner({ session, onClose, onFinished }: Props) {
                                 onChange={() => setAnswer(question.id, String(optionIndex))}
                                 className="mt-[3px] h-[16px] w-[16px] border-line text-brand focus:ring-brand"
                               />
-                              <span className="flex-1">{option}</span>
+                              <span className="min-w-0 flex-1 break-words">{option}</span>
                             </label>
                           )
                         })}
@@ -195,6 +221,7 @@ export function QuizRunner({ session, onClose, onFinished }: Props) {
                       )}
                       <input
                         type="text"
+                        aria-label={t('question-n', { n: index + 1 })}
                         value={answers[question.id] ?? ''}
                         disabled={grade !== null}
                         autoComplete="off"
@@ -223,7 +250,7 @@ export function QuizRunner({ session, onClose, onFinished }: Props) {
               </Button>
             ) : scoreVisible ? (
               <>
-                <p className="text-[22px] font-bold text-fg">
+                <p className="text-[22px] font-bold text-fg" role="status">
                   {t('quiz-score', {
                     score: grade.score,
                     total: grade.total,

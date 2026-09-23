@@ -33,11 +33,28 @@ jobs:
       - name: Typecheck
         run: npm run typecheck
 
-      - name: Unit tests
+      # Includes supabase/tests: every migration applied to PGlite and the
+      # RLS / quota / tier rules checked against it.
+      - name: Unit, integration and database tests
         run: npm test
 
       - name: Build
         run: npm run build
+
+  edge-functions:
+    name: edge functions (deno check)
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: denoland/setup-deno@v2
+        with:
+          deno-version: v2.x
+
+      # The React typecheck never sees the Deno code; a missing function or a
+      # bad import here would otherwise only surface as a 500 in production.
+      - name: Type-check ai-chat
+        run: deno check supabase/functions/ai-chat/index.ts
 
   security:
     name: dependency audit
@@ -52,8 +69,9 @@ jobs:
 
       - run: npm ci
 
-      # High/critical only: the two known moderate CVEs (esbuild dev-server
-      # request forgery, react-router open redirect) both require a major
-      # version bump and are tracked separately rather than failing every PR.
+      # Production dependencies, high/critical only. Known and accepted:
+      # react-router open redirect (moderate) — the app only navigates to fixed
+      # routes, never to user- or AI-supplied URLs; the fix is the v7 major.
+      # vite/esbuild advisories affect the local dev server only (devDeps).
       - name: npm audit (high+)
         run: npm audit --omit=dev --audit-level=high

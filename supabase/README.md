@@ -1,60 +1,55 @@
-# Supabase Integration Guide
+# Supabase backend
 
-This folder contains a production-ready backend migration for this app.
+Postgres (with row-level security), Google OAuth and one Edge Function
+(`ai-chat`) that is the only place the AI provider key is used.
 
-## 1) Create project and auth provider
+Full deployment steps, environment variables, backups and rollback are in
+[`docs/DEPLOYMENT.md`](../docs/DEPLOYMENT.md). This file is the quick reference.
 
-1. Create a Supabase project.
-2. In Auth -> Providers, enable Google provider.
-3. Set redirect URLs:
-   - http://localhost:3000
-   - http://localhost:3000/index.html
-   - http://localhost:3000/app.html
+## Layout
 
-## 2) Apply DB schema and RLS
+| Path                                | What it is                                                                |
+| ----------------------------------- | ------------------------------------------------------------------------- |
+| `migrations/`                       | The **only** schema source of truth. Apply in filename order.             |
+| `functions/ai-chat/`                | Edge Function: auth check → request validation → quota → AI → validation. |
+| `functions/_shared/aiValidation.ts` | Validators for model output; also imported by the React app (`@shared`).  |
+| `functions/_shared/cors.ts`         | CORS, restricted by the `ALLOWED_ORIGINS` secret.                         |
+| `tests/security.test.ts`            | Applies every migration to PGlite and checks RLS, quota and tier rules.   |
 
-1. Run `supabase/schema.sql` in SQL editor.
-2. Run `supabase/rls.sql` in SQL editor.
-
-## 3) Frontend setup
-
-1. Copy `supabase/frontend/supabase.config.example.js` to `supabase/frontend/supabase.config.js`.
-2. Fill Supabase URL and anon key.
-3. Add these scripts to both `index.html` and `app.html`:
-
-```html
-<script type="module" src="supabase/frontend/bootstrap.js"></script>
-```
-
-## 4) Edge Functions
-
-1. Install Supabase CLI.
-2. Deploy function:
+## Apply the schema
 
 ```bash
+supabase link --project-ref <project-ref>
+supabase db push            # applies migrations/ in order
+```
+
+Without the CLI, paste each file from `migrations/` into the SQL editor in
+order. Every migration is safe to re-run.
+
+## Deploy the function
+
+```bash
+supabase secrets set OPENROUTER_API_KEY=... ALLOWED_ORIGINS=https://your-domain
 supabase functions deploy ai-chat
 ```
 
-3. Set secrets:
+`SUPABASE_URL` and `SUPABASE_ANON_KEY` are injected by the platform. Optional
+secrets: `AI_MODEL_CHAT`, `AI_MODEL_QUIZ`, `AI_MODEL_EXTRACTION`,
+`AI_MODEL_FALLBACK`, `AI_TIMEOUT_MS`, `OPENROUTER_SITE_URL`,
+`OPENROUTER_APP_NAME`.
+
+## Limits enforced in the database
+
+- Free plan: 300 words, 10 AI requests per day.
+- Premium: unlimited words; AI capped at 1,000 requests per day as a cost
+  safety net (shown to users as unlimited).
+- Everyone: 40 AI requests per minute.
+- Tiers can only be changed by the service role or from the SQL editor:
+  `update public.profiles set tier = 'premium' where user_id = '<uuid>';`
+
+## Check it
 
 ```bash
-supabase secrets set OPENAI_API_KEY=YOUR_KEY
-supabase secrets set OPENAI_MODEL=gpt-4o-mini
+npm test -- supabase/tests                                  # RLS / quota regression suite
+npx deno check supabase/functions/ai-chat/index.ts          # type-check the function
 ```
-
-## 5) Migrate existing `script.js`
-
-Current file still has legacy local/session storage logic.
-Use the module functions below as replacements in your handlers:
-
-- Auth: `signInWithGoogle`, `getCurrentUser`, `signOutUser`
-- Words: `fetchWords`, `addWord`, `deleteWord`, `updateWord`
-- Progress: `saveQuizResultRemote`, `fetchQuizHistory`
-- AI: `invokeAiChat`
-
-A complete code sample is in `supabase/frontend/migration-examples.js`.
-
-## 6) Daily usage limits
-
-`increment_ai_usage` is enforced in Edge Function before any OpenAI call.
-If limit is reached, function returns HTTP 429.

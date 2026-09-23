@@ -2,8 +2,14 @@ import type { Word } from '@/types/domain'
 
 export type ExportFormat = 'txt' | 'csv' | 'json'
 
-function csvCell(value: string): string {
-  return `"${value.replace(/"/g, '""')}"`
+/**
+ * Quotes a cell and defuses spreadsheet formula injection: a definition such
+ * as `=HYPERLINK(...)` from an imported file would otherwise run when the CSV
+ * is opened in Excel or Sheets. `parseCsvExport` strips the guard on re-import.
+ */
+export function csvCell(value: string): string {
+  const safe = /^[=+\-@\t\r]/.test(value) ? `'${value}` : value
+  return `"${safe.replace(/"/g, '""')}"`
 }
 
 export function serialise(words: Word[], format: ExportFormat): { content: string; mime: string } {

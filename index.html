@@ -5,15 +5,15 @@
     <link rel="icon" type="image/png" href="/icon-192.png" />
     <meta name="viewport" content="width=device-width, initial-scale=1.0" />
     <meta name="theme-color" content="#2563eb" />
+    <meta
+      name="description"
+      content="Умен речник — личен речник с AI тестове, флашкарти и асистент."
+    />
     <title>Умен Речник</title>
-    <script>
-      try {
-        var t = localStorage.getItem('appTheme') || 'light'
-        if (t === 'dark') document.documentElement.classList.add('dark')
-      } catch (e) {}
-    </script>
+    <script src="/theme-init.js"></script>
   </head>
   <body>
+    <noscript>Умен Речник изисква JavaScript. / Smart Dictionary requires JavaScript.</noscript>
     <div id="root"></div>
     <script type="module" src="/src/main.tsx"></script>
   </body>

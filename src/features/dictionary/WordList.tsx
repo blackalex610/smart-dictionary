@@ -20,6 +20,8 @@ const SORTS: { value: SortOrder; key: TranslationKey }[] = [
 ]
 
 const PAGE_SIZE = 15
+/** "Show more" adds this many; rendering all 10,000 cards at once froze the page. */
+const LOAD_MORE_STEP = 60
 
 interface Props {
   words: Word[]
@@ -116,10 +118,10 @@ export function WordList({
 }: Props) {
   const t = useT()
   const [view, setView] = useState<ViewMode>('list')
-  const [expanded, setExpanded] = useState(false)
+  const [limit, setLimit] = useState(PAGE_SIZE)
 
-  const visible = expanded ? words : words.slice(0, PAGE_SIZE)
-  const hasMore = words.length > visible.length
+  const visible = words.slice(0, limit)
+  const remaining = words.length - visible.length
 
   return (
     <section className="flex h-full flex-col rounded-card border border-line bg-surface shadow-card">
@@ -219,13 +221,13 @@ export function WordList({
         )}
       </div>
 
-      {hasMore && (
+      {remaining > 0 && (
         <button
           type="button"
-          onClick={() => setExpanded(true)}
+          onClick={() => setLimit((prev) => prev + LOAD_MORE_STEP)}
           className="mt-1 flex items-center justify-center gap-2 border-t border-line py-4 text-[14px] font-medium text-fg-muted transition hover:text-brand"
         >
-          {t('view-all-words')}
+          {t('show-more-words', { n: remaining })}
           <ArrowRight size={15} />
         </button>
       )}

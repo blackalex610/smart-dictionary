@@ -1,6 +1,6 @@
+import { validateEntry } from '@shared/aiValidation'
 import {
   isDifficulty,
-  isPartOfSpeech,
   isQuizType,
   type Difficulty,
   type PartOfSpeech,
@@ -78,11 +78,13 @@ function toAction(name: string, args: Record<string, string>): ChatAction | null
     }
 
     case 'add-word': {
-      const word = args.word?.trim()
-      const definition = (args.definition ?? args.meaning ?? '').trim()
-      const partOfSpeech = (args.pos ?? args.partofspeech ?? '').toLowerCase()
-      if (!word || !definition || !isPartOfSpeech(partOfSpeech)) return null
-      return { kind: 'add-word', word, definition, partOfSpeech }
+      // Same gate as imports: normalised, length-limited, known part of speech.
+      const entry = validateEntry({
+        word: args.word,
+        definition: args.definition ?? args.meaning,
+        partOfSpeech: args.pos ?? args.partofspeech,
+      })
+      return entry ? { kind: 'add-word', ...entry } : null
     }
 
     default:

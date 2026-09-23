@@ -1,5 +1,6 @@
 import { createContext, useCallback, useContext, useMemo, useRef, useState } from 'react'
 import { AlertCircle, CheckCircle2, Info, X } from 'lucide-react'
+import { useT } from '@/context/I18nContext'
 import { cn } from '@/lib/cn'
 
 type ToastTone = 'success' | 'error' | 'info'
@@ -20,6 +21,7 @@ const ToastContext = createContext<ToastValue | null>(null)
 const ICONS = { success: CheckCircle2, error: AlertCircle, info: Info } as const
 
 export function ToastProvider({ children }: { children: React.ReactNode }) {
+  const t = useT()
   const [toasts, setToasts] = useState<Toast[]>([])
   const nextId = useRef(1)
 
@@ -30,8 +32,9 @@ export function ToastProvider({ children }: { children: React.ReactNode }) {
   const push = useCallback<ToastValue['push']>(
     (message, tone = 'success', action) => {
       const id = nextId.current++
-      setToasts((prev) => [...prev, { id, message, tone, action }])
-      window.setTimeout(() => dismiss(id), 4000)
+      // Keep the last few only, and leave time to reach an Undo or read an error.
+      setToasts((prev) => [...prev.slice(-3), { id, message, tone, action }])
+      window.setTimeout(() => dismiss(id), action ? 8000 : tone === 'error' ? 6000 : 4000)
     },
     [dismiss],
   )
@@ -44,12 +47,14 @@ export function ToastProvider({ children }: { children: React.ReactNode }) {
       <div
         className="pointer-events-none fixed bottom-6 left-1/2 z-[100] flex w-full max-w-sm -translate-x-1/2 flex-col gap-2 px-4"
         aria-live="polite"
+        aria-relevant="additions"
       >
         {toasts.map((toast) => {
           const Icon = ICONS[toast.tone]
           return (
             <div
               key={toast.id}
+              role={toast.tone === 'error' ? 'alert' : 'status'}
               className={cn(
                 'pointer-events-auto flex items-center gap-3 rounded-xl border bg-surface px-4 py-3 text-sm shadow-pop animate-slide-up',
                 toast.tone === 'error' ? 'border-error/30' : 'border-line',
@@ -81,7 +86,7 @@ export function ToastProvider({ children }: { children: React.ReactNode }) {
                 type="button"
                 onClick={() => dismiss(toast.id)}
                 className="shrink-0 rounded-md p-1 text-fg-subtle transition hover:bg-surface-2 hover:text-fg"
-                aria-label="Close"
+                aria-label={t('dismiss')}
               >
                 <X size={14} />
               </button>

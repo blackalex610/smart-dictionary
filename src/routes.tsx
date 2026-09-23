@@ -1,15 +1,37 @@
+import { lazy, Suspense } from 'react'
 import { createBrowserRouter } from 'react-router-dom'
+import { Spinner } from '@/components/ui/Spinner'
 import { AppLayout } from '@/pages/AppLayout'
 import { DictionaryPage } from '@/pages/DictionaryPage'
-import { FlashcardsPage } from '@/pages/FlashcardsPage'
 import { LoginPage } from '@/pages/LoginPage'
-import { SettingsPage } from '@/pages/SettingsPage'
-import { TestsPage } from '@/pages/TestsPage'
-import { AuthCallbackPage, NotFoundPage, ProtectedRoute } from '@/pages/misc'
+import { AuthCallbackPage, NotFoundPage, ProtectedRoute, RouteErrorPage } from '@/pages/misc'
+
+// The dictionary is the landing view; the other sections load on first visit.
+const FlashcardsPage = lazy(() =>
+  import('@/pages/FlashcardsPage').then((m) => ({ default: m.FlashcardsPage })),
+)
+const TestsPage = lazy(() => import('@/pages/TestsPage').then((m) => ({ default: m.TestsPage })))
+const SettingsPage = lazy(() =>
+  import('@/pages/SettingsPage').then((m) => ({ default: m.SettingsPage })),
+)
+
+function Lazy({ children }: { children: React.ReactNode }) {
+  return (
+    <Suspense
+      fallback={
+        <div className="flex justify-center py-16 text-fg-muted">
+          <Spinner />
+        </div>
+      }
+    >
+      {children}
+    </Suspense>
+  )
+}
 
 export const router = createBrowserRouter([
-  { path: '/', element: <LoginPage /> },
-  { path: '/auth/callback', element: <AuthCallbackPage /> },
+  { path: '/', element: <LoginPage />, errorElement: <RouteErrorPage /> },
+  { path: '/auth/callback', element: <AuthCallbackPage />, errorElement: <RouteErrorPage /> },
   {
     path: '/app',
     element: (
@@ -17,11 +39,39 @@ export const router = createBrowserRouter([
         <AppLayout />
       </ProtectedRoute>
     ),
+    errorElement: <RouteErrorPage />,
     children: [
-      { index: true, element: <DictionaryPage /> },
-      { path: 'flashcards', element: <FlashcardsPage /> },
-      { path: 'tests', element: <TestsPage /> },
-      { path: 'settings', element: <SettingsPage /> },
+      {
+        // Keeps the header and navigation on screen when one view crashes.
+        errorElement: <RouteErrorPage inline />,
+        children: [
+          { index: true, element: <DictionaryPage /> },
+          {
+            path: 'flashcards',
+            element: (
+              <Lazy>
+                <FlashcardsPage />
+              </Lazy>
+            ),
+          },
+          {
+            path: 'tests',
+            element: (
+              <Lazy>
+                <TestsPage />
+              </Lazy>
+            ),
+          },
+          {
+            path: 'settings',
+            element: (
+              <Lazy>
+                <SettingsPage />
+              </Lazy>
+            ),
+          },
+        ],
+      },
     ],
   },
   { path: '*', element: <NotFoundPage /> },

@@ -272,6 +272,35 @@ const en = {
   'chat-action-flashcards': 'Opened flashcard practice for you.',
   'chat-action-open': 'Opened that section for you.',
   'chat-action-add-word': 'Added that word to your dictionary.',
+  'err-import-too-large': 'That file is too large. The limit is 5 MB.',
+  'toast-import-truncated':
+    'The file is long, so only its first part was processed. Split it to import the rest.',
+  'import-preview-title': 'Review import',
+  'import-preview-summary': '{n} new word(s) will be added to “{folder}”.',
+  'import-preview-nothing': 'Every word in this file is already in your dictionary.',
+  'import-preview-existing': '{n} already in your dictionary — skipped.',
+  'import-preview-repeated': '{n} repeated in the file — skipped.',
+  'import-preview-invalid': '{n} incomplete or invalid entries — skipped.',
+  'import-preview-over-limit':
+    '{n} more are over the {max}-word limit per import. Import the file again to add them.',
+  'import-preview-more': '…and {n} more',
+  'import-confirm': 'Add {n} word(s)',
+  'import-progress': 'Importing {done}/{total}…',
+  'toast-import-partial': '{added} word(s) imported, {failed} could not be saved.',
+  'ai-rate-limited': 'Too many AI requests. Please wait a minute and try again.',
+  'ai-unavailable': 'The AI service is temporarily unavailable. Your dictionary was not changed.',
+  'err-offline': 'You appear to be offline. Check your connection and try again.',
+  'err-storage-full':
+    'Your browser refused to save because its storage is full or blocked. Nothing was saved.',
+  dismiss: 'Dismiss',
+  'err-sign-in': 'Sign-in could not be started. Please try again.',
+  'err-sign-in-denied': 'Sign-in was cancelled or could not be completed.',
+  'error-page-title': 'Something went wrong',
+  'error-page-body': 'An unexpected error occurred. Your saved words are safe.',
+  reload: 'Reload',
+  'show-more-words': 'Show more ({n} left)',
+  'not-found-body': 'This page does not exist.',
+  'main-navigation': 'Main navigation',
 } as const
 
 export default en

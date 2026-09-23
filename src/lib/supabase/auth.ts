@@ -28,6 +28,11 @@ export async function signInWithGoogle(): Promise<void> {
   if (error) throw error
 }
 
+/**
+ * `scope: 'local'` ends this browser's session without revoking the user's
+ * sessions on other devices, and still clears local state if the network call
+ * fails.
+ */
 export async function signOut(): Promise<void> {
-  await supabase.auth.signOut()
+  await supabase.auth.signOut({ scope: 'local' })
 }

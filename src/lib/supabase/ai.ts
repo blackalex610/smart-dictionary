@@ -1,6 +1,13 @@
 import { supabase } from './client'
-import { AiDailyLimitError } from '@/lib/errors'
+import { AiDailyLimitError, AiRateLimitError, AiUnavailableError } from '@/lib/errors'
+import type { ChoiceSet, Reading, StructuredEntry } from '@shared/aiValidation'
 import type { Difficulty, PartOfSpeech, Word } from '@/types/domain'
+
+/**
+ * Longer than the Edge Function's own worst case (one primary attempt plus one
+ * fallback attempt), so the server gets to answer with a proper error first.
+ */
+const AI_TIMEOUT_MS = 100_000
 
 export type AiType =
   | 'chat'
@@ -16,14 +23,26 @@ interface FunctionsErrorContext {
 }
 
 /**
- * One entry point for the `ai-chat` Edge Function. The function answers 429 with
- * `{error:'AI_DAILY_LIMIT_REACHED', usage}` — surfaced as a typed error so the UI
- * can show the quota message instead of a generic failure.
+ * One entry point for the `ai-chat` Edge Function. Every failure becomes one of
+ * three typed errors so the UI can say something useful — the daily quota, the
+ * per-minute burst limit, or "the AI is unavailable" — and never shows a raw
+ * server or network message.
  */
 export async function invokeAi<T>(type: AiType, payload: Record<string, unknown>): Promise<T> {
-  const { data, error } = await supabase.functions.invoke<T>('ai-chat', {
-    body: { type, payload },
-  })
+  if (typeof navigator !== 'undefined' && navigator.onLine === false) {
+    throw new AiUnavailableError('OFFLINE')
+  }
+
+  let result: Awaited<ReturnType<typeof supabase.functions.invoke<T>>>
+  try {
+    result = await supabase.functions.invoke<T>('ai-chat', {
+      body: { type, payload },
+      timeout: AI_TIMEOUT_MS,
+    })
+  } catch {
+    throw new AiUnavailableError('NETWORK_ERROR')
+  }
+  const { data, error } = result
 
   if (error) {
     const context = (error as unknown as FunctionsErrorContext).context
@@ -35,13 +54,14 @@ export async function invokeAi<T>(type: AiType, payload: Record<string, unknown>
         /* non-JSON error body */
       }
     }
+    if (body?.error === 'AI_RATE_LIMITED') throw new AiRateLimitError()
     if (context?.status === 429 || body?.error === 'AI_DAILY_LIMIT_REACHED') {
       throw new AiDailyLimitError(body?.usage)
     }
-    throw new Error(body?.error ?? error.message)
+    throw new AiUnavailableError(body?.error ?? 'AI_REQUEST_FAILED')
   }
 
-  if (!data) throw new Error('EMPTY_AI_RESPONSE')
+  if (!data) throw new AiUnavailableError('EMPTY_AI_RESPONSE')
   return data
 }
 
@@ -77,7 +97,8 @@ export function aiWrongAnswers(
   partOfSpeech: PartOfSpeech,
   difficulty: Difficulty,
 ) {
-  return invokeAi<{ correctAnswer: string; wrongAnswers: string[] }>('generate-wrong-answers', {
+  // Untrusted until it passes validateWrongAnswers() in the quiz generator.
+  return invokeAi<Partial<ChoiceSet>>('generate-wrong-answers', {
     word,
     definition,
     partOfSpeech,
@@ -90,7 +111,8 @@ export function aiReadingComprehension(
   questionCount: number,
   difficulty: Difficulty,
 ) {
-  return invokeAi<{ content: string }>('generate-reading-comprehension', {
+  // `content` is the legacy free-text format from before the JSON contract.
+  return invokeAi<Partial<Reading> & { content?: string }>('generate-reading-comprehension', {
     words,
     questionCount,
     difficulty,
@@ -103,7 +125,7 @@ export function aiOpenClause(
   partOfSpeech: PartOfSpeech,
   difficulty: Difficulty,
 ) {
-  return invokeAi<{ question: string; answer: string }>('generate-open-clause', {
+  return invokeAi<Record<string, unknown>>('generate-open-clause', {
     word,
     definition,
     partOfSpeech,
@@ -117,7 +139,7 @@ export function aiGapFill(
   partOfSpeech: PartOfSpeech,
   difficulty: Difficulty,
 ) {
-  return invokeAi<{ sentence: string; answer: string }>('generate-gap-fill', {
+  return invokeAi<Record<string, unknown>>('generate-gap-fill', {
     word,
     definition,
     partOfSpeech,
@@ -126,7 +148,7 @@ export function aiGapFill(
 }
 
 export function aiGapFillVerbForm(word: string, definition: string, difficulty: Difficulty) {
-  return invokeAi<{ sentence: string; answer: string }>('generate-gap-fill-verb-form', {
+  return invokeAi<Record<string, unknown>>('generate-gap-fill-verb-form', {
     word,
     definition,
     partOfSpeech: 'verb',
@@ -135,5 +157,8 @@ export function aiGapFillVerbForm(word: string, definition: string, difficulty: 
 }
 
 export function aiStructureWords(rawText: string) {
-  return invokeAi<{ content: string }>('structure-words', { raw_text: rawText })
+  // `content` is the legacy `word,definition,pos` line format.
+  return invokeAi<{ entries?: StructuredEntry[]; content?: string }>('structure-words', {
+    raw_text: rawText,
+  })
 }

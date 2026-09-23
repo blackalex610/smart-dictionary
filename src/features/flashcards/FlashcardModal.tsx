@@ -1,6 +1,7 @@
-import { useCallback, useEffect, useState } from 'react'
+import { useCallback, useEffect, useRef, useState } from 'react'
 import { ChevronLeft, ChevronRight, Volume2, X } from 'lucide-react'
 import { useT } from '@/context/I18nContext'
+import { useDialogFocus } from '@/hooks/useDialogFocus'
 import { cn } from '@/lib/cn'
 import { canSpeak, speakWord } from '@/lib/speech'
 import type { TranslationKey } from '@/i18n'
@@ -16,6 +17,9 @@ export function FlashcardModal({ words, onClose }: Props) {
   const t = useT()
   const [index, setIndex] = useState(0)
   const [flipped, setFlipped] = useState(false)
+  const panelRef = useRef<HTMLDivElement>(null)
+  // Focus the deck itself so the arrow/Space shortcuts work straight away.
+  useDialogFocus(true, panelRef, onClose, { initialFocus: 'panel' })
 
   const card = words[index]
   const atStart = index === 0
@@ -32,27 +36,20 @@ export function FlashcardModal({ words, onClose }: Props) {
     [words.length],
   )
 
+  // Escape, focus trapping and scroll lock come from useDialogFocus.
   useEffect(() => {
     const onKeyDown = (event: KeyboardEvent) => {
-      if (event.key === 'Escape') {
-        onClose()
-        return
-      }
       if (event.key === 'ArrowLeft') go(-1)
       else if (event.key === 'ArrowRight') go(1)
       else if (event.key === ' ' || event.code === 'Space') {
+        // The documented shortcut: Space always flips, whatever has focus.
         event.preventDefault()
         setFlipped((prev) => !prev)
       }
     }
     document.addEventListener('keydown', onKeyDown)
-    const previousOverflow = document.body.style.overflow
-    document.body.style.overflow = 'hidden'
-    return () => {
-      document.removeEventListener('keydown', onKeyDown)
-      document.body.style.overflow = previousOverflow
-    }
-  }, [go, onClose])
+    return () => document.removeEventListener('keydown', onKeyDown)
+  }, [go])
 
   if (!card) return null
 
@@ -71,9 +68,20 @@ export function FlashcardModal({ words, onClose }: Props) {
         if (event.target === event.currentTarget) onClose()
       }}
     >
-      <div className="flex w-full max-w-[640px] flex-col items-center gap-5">
+      <div
+        ref={panelRef}
+        role="dialog"
+        aria-modal="true"
+        aria-labelledby="flashcard-progress"
+        tabIndex={-1}
+        className="flex w-full max-w-[640px] flex-col items-center gap-5 focus:outline-none"
+      >
         <div className="flex w-full items-center justify-between">
-          <span className="text-[14px] font-medium text-white/80">
+          <span
+            id="flashcard-progress"
+            className="text-[14px] font-medium text-white/80"
+            aria-live="polite"
+          >
             {t('card-n-of-m', { n: index + 1, total: words.length })}
           </span>
           <button
@@ -91,9 +99,12 @@ export function FlashcardModal({ words, onClose }: Props) {
             type="button"
             onClick={() => setFlipped((prev) => !prev)}
             className={cn('flip-card block h-[320px] w-full text-left', flipped && 'is-flipped')}
-            aria-label={t('shortcut-flip')}
+            aria-label={`${t('shortcut-flip')}: ${flipped ? card.definition : card.word}`}
           >
-            <span className="flip-face flex flex-col items-center justify-center gap-4 rounded-2xl border border-line bg-surface p-8 text-center shadow-pop">
+            <span
+              aria-hidden={flipped}
+              className="flip-face flex flex-col items-center justify-center gap-4 rounded-2xl border border-line bg-surface p-8 text-center shadow-pop"
+            >
               <span className="rounded-md bg-brand-soft px-2.5 py-[3px] text-[12.5px] font-medium text-brand">
                 {t(card.partOfSpeech as TranslationKey)}
               </span>
@@ -101,7 +112,10 @@ export function FlashcardModal({ words, onClose }: Props) {
               <span className="text-[13.5px] text-fg-subtle">{t('flip-hint-front')}</span>
             </span>
 
-            <span className="flip-face flip-face-back flex flex-col items-center justify-center gap-4 overflow-y-auto rounded-2xl border border-line bg-surface p-8 text-center shadow-pop">
+            <span
+              aria-hidden={!flipped}
+              className="flip-face flip-face-back flex flex-col items-center justify-center gap-4 overflow-y-auto rounded-2xl border border-line bg-surface p-8 text-center shadow-pop"
+            >
               <span className="rounded-md bg-brand-soft px-2.5 py-[3px] text-[12.5px] font-medium text-brand">
                 {t(card.partOfSpeech as TranslationKey)}
               </span>

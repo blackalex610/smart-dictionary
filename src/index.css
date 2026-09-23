@@ -11,7 +11,8 @@
     --line-soft: 240 241 244;
     --fg: 17 24 39;
     --fg-muted: 75 85 99;
-    --fg-subtle: 156 163 175;
+    /* #6B7280: 4.8:1 on white (the previous #9CA3AF was 2.5:1, below WCAG AA). */
+    --fg-subtle: 107 114 128;
     --brand: 37 99 235;
     --brand-hover: 29 78 216;
     --brand-soft: 239 244 255;
@@ -33,7 +34,7 @@
     --line-soft: 38 44 58;
     --fg: 233 236 242;
     --fg-muted: 160 172 190;
-    --fg-subtle: 118 130 148;
+    --fg-subtle: 140 152 170;
     --brand: 96 138 255;
     --brand-hover: 129 163 255;
     --brand-soft: 33 45 74;
@@ -76,6 +77,24 @@
 
   ::selection {
     @apply bg-brand/20;
+  }
+
+  /* Keyboard focus must always be visible, including on custom controls. */
+  :focus-visible {
+    outline: 2px solid rgb(var(--brand));
+    outline-offset: 2px;
+  }
+
+  /* Respect the OS "reduce motion" setting: no slides, fades or card flips. */
+  @media (prefers-reduced-motion: reduce) {
+    *,
+    *::before,
+    *::after {
+      animation-duration: 0.01ms !important;
+      animation-iteration-count: 1 !important;
+      transition-duration: 0.01ms !important;
+      scroll-behavior: auto !important;
+    }
   }
 }
 

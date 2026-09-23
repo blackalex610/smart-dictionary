@@ -1,8 +1,8 @@
-import { readJson, writeJson } from '@/lib/storage'
+import { readString, writeJsonOrThrow, writeString } from '@/lib/storage'
 import { DEFAULT_FOLDER, getFolderFromDate } from '@/lib/folders'
 import { isPartOfSpeech, type NewWord, type Word, type WordsBackend } from '@/types/domain'
 
-const KEY = 'dictionary_guest'
+export const GUEST_WORDS_KEY = 'dictionary_guest'
 
 interface LegacyWord {
   id?: string
@@ -21,36 +21,66 @@ function newId(): string {
 }
 
 /** Tolerates the vanilla app's shape (`timestamp`, missing id/folder). */
-function normalise(raw: LegacyWord): Word {
-  const createdAt = raw.createdAt ?? raw.timestamp ?? Date.now()
+function normalise(raw: LegacyWord): Word | null {
+  const word = typeof raw?.word === 'string' ? raw.word.trim() : ''
+  if (!word) return null
+  const createdAt = Number.isFinite(raw.createdAt)
+    ? Number(raw.createdAt)
+    : Number.isFinite(raw.timestamp)
+      ? Number(raw.timestamp)
+      : Date.now()
   return {
-    id: raw.id ?? newId(),
-    word: raw.word ?? '',
-    definition: raw.definition ?? '',
+    id: typeof raw.id === 'string' && raw.id ? raw.id : newId(),
+    word,
+    definition: typeof raw.definition === 'string' ? raw.definition : '',
     partOfSpeech: isPartOfSpeech(raw.partOfSpeech) ? raw.partOfSpeech : 'noun',
-    example: raw.example ?? null,
+    example: typeof raw.example === 'string' ? raw.example : null,
     folder: raw.folder || getFolderFromDate(createdAt) || DEFAULT_FOLDER,
     createdAt,
   }
 }
 
-function readAll(): Word[] {
-  const raw = readJson<LegacyWord[]>(KEY, [])
-  if (!Array.isArray(raw)) return []
-  return raw.map(normalise).sort((a, b) => b.createdAt - a.createdAt)
+/**
+ * If the stored value cannot be parsed it is copied aside once before anything
+ * overwrites it, so a corrupted dictionary can still be recovered by hand.
+ */
+function backUpCorrupt(raw: string): void {
+  const backupKey = `${GUEST_WORDS_KEY}_corrupt_backup`
+  if (readString(backupKey) === null) writeString(backupKey, raw)
 }
 
+export function readGuestWords(): Word[] {
+  const raw = readString(GUEST_WORDS_KEY)
+  if (raw === null) return []
+  let parsed: unknown
+  try {
+    parsed = JSON.parse(raw)
+  } catch {
+    backUpCorrupt(raw)
+    return []
+  }
+  if (!Array.isArray(parsed)) {
+    backUpCorrupt(raw)
+    return []
+  }
+  return parsed
+    .map((entry) => normalise(entry as LegacyWord))
+    .filter((word): word is Word => word !== null)
+    .sort((a, b) => b.createdAt - a.createdAt)
+}
+
+/** Throws `StorageWriteError` when the browser refuses — the caller must not report success. */
 function writeAll(words: Word[]): void {
-  writeJson(KEY, words)
+  writeJsonOrThrow(GUEST_WORDS_KEY, words)
 }
 
 export const guestWords: WordsBackend = {
   async list() {
-    return readAll()
+    return readGuestWords()
   },
 
   async create(input: NewWord) {
-    const words = readAll()
+    const words = readGuestWords()
     const word: Word = {
       id: newId(),
       word: input.word,
@@ -65,7 +95,7 @@ export const guestWords: WordsBackend = {
   },
 
   async update(id, patch) {
-    const words = readAll()
+    const words = readGuestWords()
     const index = words.findIndex((w) => w.id === id)
     if (index === -1) throw new Error('WORD_NOT_FOUND')
     const next: Word = {
@@ -82,10 +112,10 @@ export const guestWords: WordsBackend = {
   },
 
   async remove(id) {
-    writeAll(readAll().filter((w) => w.id !== id))
+    writeAll(readGuestWords().filter((w) => w.id !== id))
   },
 
-  async replaceAll(words) {
-    writeAll(words)
+  async clear() {
+    writeAll([])
   },
 }
