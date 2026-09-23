@@ -34,8 +34,13 @@ jobs:
         run: npm run typecheck
 
       # Includes supabase/tests: every migration applied to PGlite and the
-      # RLS / quota / tier rules checked against it.
+      # RLS / quota / tier rules checked against it. Placeholder values only
+      # — src/lib/supabase/client.ts throws if unset (correct in production;
+      # tests never make a real network call, so any well-formed value works.)
       - name: Unit, integration and database tests
+        env:
+          VITE_SUPABASE_URL: https://placeholder.supabase.co
+          VITE_SUPABASE_ANON_KEY: placeholder-anon-key
         run: npm test
 
       - name: Build
@@ -57,7 +62,13 @@ jobs:
       - name: Install Playwright browsers
         run: npx playwright install --with-deps chromium
 
+      # Placeholder values: Vite inlines VITE_* at build time, and the built
+      # bundle's client.ts throws if unset (correct in production). Guest
+      # mode — the only thing this suite exercises — never calls Supabase.
       - name: Build
+        env:
+          VITE_SUPABASE_URL: https://placeholder.supabase.co
+          VITE_SUPABASE_ANON_KEY: placeholder-anon-key
         run: npm run build
 
       # Runs against the production build under the production CSP

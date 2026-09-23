@@ -5,6 +5,7 @@ import { GUEST_WORDS_KEY, guestWords, readGuestWords } from './guestStore'
 afterEach(() => {
   localStorage.clear()
   vi.restoreAllMocks()
+  vi.unstubAllGlobals()
 })
 
 const input = {
@@ -21,10 +22,21 @@ describe('guestWords', () => {
   })
 
   it('throws instead of reporting success when storage is full', async () => {
-    // The test setup may install a plain-object polyfill, so spy on the instance.
-    vi.spyOn(window.localStorage, 'setItem').mockImplementation(() => {
-      throw new DOMException('full', 'QuotaExceededError')
-    })
+    // vi.stubGlobal replaces the `localStorage` binding storage.ts resolves
+    // directly, sidestepping whether window.localStorage is jsdom's real
+    // Storage or the setup.ts memory polyfill on this jsdom/vitest version —
+    // vi.spyOn(window.localStorage, ...) depends on that identity and was
+    // flaky in CI even though it passed locally.
+    vi.stubGlobal('localStorage', {
+      getItem: () => null,
+      removeItem: () => {},
+      clear: () => {},
+      key: () => null,
+      length: 0,
+      setItem: () => {
+        throw new DOMException('full', 'QuotaExceededError')
+      },
+    } satisfies Storage)
     await expect(guestWords.create(input)).rejects.toBeInstanceOf(StorageWriteError)
   })
 
