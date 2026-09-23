@@ -22,3 +22,6 @@ backend/*.egg-info
 
 # Local browser-automation output
 .playwright-mcp
+
+.vercel
+.env*
