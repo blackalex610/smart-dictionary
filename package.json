@@ -14,7 +14,8 @@
     "format:check": "prettier --check .",
     "test": "vitest run",
     "test:watch": "vitest",
-    "test:coverage": "vitest run --coverage"
+    "test:coverage": "vitest run --coverage",
+    "e2e": "playwright test"
   },
   "dependencies": {
     "@fontsource/inter": "^5.1.0",
@@ -28,8 +29,10 @@
     "tailwind-merge": "^2.5.5"
   },
   "devDependencies": {
+    "@axe-core/playwright": "^4.13.0",
     "@electric-sql/pglite": "^0.5.8",
     "@eslint/js": "^9.39.5",
+    "@playwright/test": "^1.63.0",
     "@tailwindcss/forms": "^0.5.9",
     "@testing-library/jest-dom": "^7.0.1",
     "@testing-library/react": "^16.3.2",

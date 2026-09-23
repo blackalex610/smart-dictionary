@@ -1,6 +1,7 @@
 import { defineConfig } from 'vite'
 import react from '@vitejs/plugin-react'
 import { fileURLToPath } from 'node:url'
+import { defaultExclude } from 'vitest/config'
 
 export default defineConfig({
   plugins: [react()],
@@ -17,6 +18,8 @@ export default defineConfig({
     globals: true,
     setupFiles: ['./src/test/setup.ts'],
     css: false,
+    // e2e/ runs under Playwright (npm run e2e), not Vitest.
+    exclude: [...defaultExclude, 'e2e/**'],
     coverage: {
       provider: 'v8',
       reporter: ['text', 'html'],
