@@ -1,0 +1,3 @@
+# Netlify / Cloudflare Pages: serve the SPA for deep links such as /app/tests
+# and the OAuth return URL /auth/callback. Existing files are served first.
+/*  /index.html  200

@@ -85,7 +85,7 @@ export function SettingsPage() {
     if (!backend) return
     setClearing(true)
     try {
-      await backend.replaceAll([])
+      await backend.clear()
       await queryClient.invalidateQueries({ queryKey: ['words'] })
       toast.push(t('toast-dictionary-cleared'))
       setClearOpen(false)

@@ -11,12 +11,13 @@ import { NewFolderDialog } from '@/features/dictionary/NewFolderDialog'
 import { SearchBar } from '@/features/dictionary/SearchBar'
 import { WordList } from '@/features/dictionary/WordList'
 import { useToast } from '@/components/ui/Toast'
+import { useAppAction } from '@/context/AppActionsContext'
 import { useT } from '@/context/I18nContext'
 import { useCustomFolders } from '@/hooks/useCustomFolders'
 import { useDictionaryFilters } from '@/hooks/useDictionaryFilters'
 import { useWordMutations, useWords } from '@/hooks/useWords'
 import { collectFolders, countByFolder, DEFAULT_FOLDER } from '@/lib/folders'
-import { FreeWordLimitError } from '@/lib/errors'
+import { errorMessageKey } from '@/lib/errors'
 import { speakWord } from '@/lib/speech'
 import type { NewWord, Word } from '@/types/domain'
 
@@ -65,13 +66,44 @@ export function DictionaryPage() {
       if (pronunciation) speakWord(payload.word)
       return true
     } catch (error) {
-      toast.push(
-        error instanceof FreeWordLimitError ? t('err-free-limit') : t('err-generic'),
-        'error',
-      )
+      toast.push(t(errorMessageKey(error), { word: payload.word }), 'error')
       return false
     }
   }
+
+  // An `add-word` directive from the chat assistant lands here. The assistant
+  // acts on model output, so the addition is announced with an Undo instead of
+  // happening silently.
+  useAppAction('add-word', async (action) => {
+    const duplicate = words.some(
+      (existing) =>
+        existing.word.trim().toLowerCase() === action.word.toLowerCase() &&
+        existing.partOfSpeech === action.partOfSpeech,
+    )
+    if (duplicate) {
+      toast.push(t('err-duplicate', { word: action.word }), 'error')
+      return
+    }
+    try {
+      const created = await create.mutateAsync({
+        word: action.word,
+        definition: action.definition,
+        partOfSpeech: action.partOfSpeech,
+        example: null,
+        folder: filters.folder ?? DEFAULT_FOLDER,
+      })
+      toast.push(t('toast-word-added', { word: created.word }), 'success', {
+        label: t('undo'),
+        onClick: () => {
+          remove.mutate(created.id, {
+            onError: () => toast.push(t('err-generic'), 'error'),
+          })
+        },
+      })
+    } catch (error) {
+      toast.push(t(errorMessageKey(error), { word: action.word }), 'error')
+    }
+  })
 
   const handleDelete = async (word: Word) => {
     setPendingDelete(null)
@@ -79,8 +111,8 @@ export function DictionaryPage() {
     try {
       await remove.mutateAsync(word.id)
       toast.push(t('toast-word-deleted', { word: word.word }))
-    } catch {
-      toast.push(t('err-generic'), 'error')
+    } catch (error) {
+      toast.push(t(errorMessageKey(error), { word: word.word }), 'error')
     }
   }
 
@@ -88,8 +120,8 @@ export function DictionaryPage() {
     try {
       await update.mutateAsync({ id: word.id, patch: { folder } })
       toast.push(t('toast-word-moved', { word: word.word, folder }))
-    } catch {
-      toast.push(t('err-generic'), 'error')
+    } catch (error) {
+      toast.push(t(errorMessageKey(error), { word: word.word }), 'error')
     }
   }
 

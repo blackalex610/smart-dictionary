@@ -25,8 +25,8 @@ function toResult(row: ProgressRow): QuizResult {
 }
 
 export async function saveQuizResult(input: NewQuizResult): Promise<void> {
-  const { data: userData } = await supabase.auth.getUser()
-  const userId = userData.user?.id
+  const { data: sessionData } = await supabase.auth.getSession()
+  const userId = sessionData.session?.user.id
   if (!userId) throw new Error('NOT_AUTHENTICATED')
 
   const { error } = await supabase.from('progress').insert({

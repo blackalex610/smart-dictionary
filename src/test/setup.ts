@@ -22,13 +22,17 @@ function createMemoryStorage(): Storage {
   }
 }
 
-if (typeof window.localStorage === 'undefined') {
+// Suites that opt into `@vitest-environment node` (the database tests) have
+// no window at all.
+const hasWindow = typeof window !== 'undefined'
+
+if (hasWindow && typeof window.localStorage === 'undefined') {
   Object.defineProperty(window, 'localStorage', {
     value: createMemoryStorage(),
     configurable: true,
   })
 }
-if (typeof window.sessionStorage === 'undefined') {
+if (hasWindow && typeof window.sessionStorage === 'undefined') {
   Object.defineProperty(window, 'sessionStorage', {
     value: createMemoryStorage(),
     configurable: true,
@@ -36,6 +40,7 @@ if (typeof window.sessionStorage === 'undefined') {
 }
 
 afterEach(() => {
+  if (!hasWindow) return
   cleanup()
   window.localStorage.clear()
   window.sessionStorage.clear()

@@ -1,5 +1,5 @@
 import { useState } from 'react'
-import { Navigate, useNavigate } from 'react-router-dom'
+import { Navigate, useLocation, useNavigate } from 'react-router-dom'
 import { BookMarked, Brain, Layers, Sparkles } from 'lucide-react'
 import { LogoMark } from '@/components/ui/Logo'
 import { Spinner } from '@/components/ui/Spinner'
@@ -17,8 +17,12 @@ const FEATURES: { icon: typeof BookMarked; key: TranslationKey }[] = [
 export function LoginPage() {
   const t = useT()
   const navigate = useNavigate()
+  const location = useLocation()
   const { state, signIn, continueAsGuest } = useAuth()
   const [busy, setBusy] = useState(false)
+  const [error, setError] = useState<string | null>(() =>
+    (location.state as { authError?: string } | null)?.authError ? t('err-sign-in-denied') : null,
+  )
 
   if (state.status === 'loading') {
     return (
@@ -33,7 +37,7 @@ export function LoginPage() {
   }
 
   return (
-    <div className="flex min-h-screen items-center justify-center px-6 py-12">
+    <main className="flex min-h-screen items-center justify-center px-6 py-12">
       <div className="w-full max-w-md rounded-2xl border border-line bg-surface p-8 shadow-card">
         <div className="flex items-center gap-3">
           <LogoMark className="h-10 w-10 rounded-xl" />
@@ -54,13 +58,26 @@ export function LoginPage() {
           ))}
         </ul>
 
+        {error && (
+          <p
+            role="alert"
+            className="mt-6 rounded-lg bg-error-soft px-3 py-2 text-[13.5px] text-error"
+          >
+            {error}
+          </p>
+        )}
+
         <button
           type="button"
           disabled={busy}
           onClick={async () => {
             setBusy(true)
+            setError(null)
             try {
+              // Success navigates away to Google; we only get here on failure.
               await signIn()
+            } catch {
+              setError(t(navigator.onLine === false ? 'err-offline' : 'err-sign-in'))
             } finally {
               setBusy(false)
             }
@@ -82,6 +99,6 @@ export function LoginPage() {
           {t('continue-as-guest')}
         </button>
       </div>
-    </div>
+    </main>
   )
 }

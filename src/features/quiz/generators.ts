@@ -5,9 +5,16 @@ import {
   aiReadingComprehension,
   aiWrongAnswers,
 } from '@/lib/supabase/ai'
-import { AiDailyLimitError } from '@/lib/errors'
+import {
+  answerKey,
+  validateGapFill,
+  validateOpenClause,
+  validateReading,
+  validateWrongAnswers,
+} from '@shared/aiValidation'
+import { AiDailyLimitError, AiRateLimitError, AiUnavailableError } from '@/lib/errors'
 import { sample, shuffle } from '@/lib/shuffle'
-import type { QuizType, Word } from '@/types/domain'
+import type { Difficulty, QuizType, Word } from '@/types/domain'
 import type { ChoiceQuestion, QuizQuestion, QuizSession, TextQuestion } from './types'
 
 /** One AI request per question is expensive; keep three in flight at most. */
@@ -40,14 +47,26 @@ async function mapLimited<T, R>(
   return results
 }
 
-function localChoiceQuestion(word: Word, pool: Word[]): ChoiceQuestion {
-  const distractors = sample(
-    pool.filter((candidate) => candidate.id !== word.id).map((candidate) => candidate.definition),
-    3,
-  )
-  while (distractors.length < 3) {
-    distractors.push(`${word.definition} (${distractors.length + 1})`)
+/**
+ * Distractors are other words' definitions. Definitions that read the same as
+ * the answer (or as each other) are skipped: two identical options would make
+ * the question unanswerable. With no usable distractor at all the word is asked
+ * as a typed-answer question instead of padding with fake options.
+ */
+export function localChoiceQuestion(word: Word, pool: Word[]): QuizQuestion {
+  const seen = new Set([answerKey(word.definition)])
+  const distractors: string[] = []
+  for (const candidate of shuffle(pool)) {
+    if (candidate.id === word.id) continue
+    const key = answerKey(candidate.definition)
+    if (!key || seen.has(key)) continue
+    seen.add(key)
+    distractors.push(candidate.definition)
+    if (distractors.length === 3) break
   }
+
+  if (distractors.length === 0) return localTextQuestion(word, word.definition)
+
   const options = shuffle([word.definition, ...distractors])
   return {
     kind: 'choice',
@@ -75,14 +94,13 @@ export function parseReadingResponse(content: string): {
   const questionsBlock = content.match(/Questions:\s*([\s\S]*?)\n\s*Answers:/i)?.[1]?.trim() ?? ''
   const answersBlock = content.match(/Answers:\s*([\s\S]*)$/i)?.[1]?.trim() ?? ''
 
-  const correctIndices = answersBlock
-    .split('\n')
-    .map((line) => line.trim())
-    .filter(Boolean)
-    .map((line) => {
-      const letter = line.split(/[.)]/)[1]?.trim().toUpperCase().charAt(0) ?? ''
-      return ['A', 'B', 'C', 'D'].indexOf(letter)
-    })
+  // `1. A` / `2) c` — keyed by question number so a skipped line cannot shift
+  // every later answer onto the wrong question.
+  const correctIndices = new Map<number, number>()
+  answersBlock.split('\n').forEach((line) => {
+    const match = /^\s*(\d+)\s*[.):-]\s*([A-D])\b/i.exec(line)
+    if (match) correctIndices.set(Number(match[1]), 'ABCD'.indexOf(match[2].toUpperCase()))
+  })
 
   const questionRegex =
     /(\d+)\.\s*([^\n]+)\n\s*A\)\s*([^\n]+)\n\s*B\)\s*([^\n]+)\n\s*C\)\s*([^\n]+)(?:\n\s*D\)\s*([^\n]+))?/g
@@ -93,14 +111,17 @@ export function parseReadingResponse(content: string): {
     const options = [match[3], match[4], match[5], match[6]]
       .filter((option): option is string => Boolean(option))
       .map((option) => option.trim())
-    const index = questions.length
-    const correctIndex = correctIndices[index]
+    const correctIndex = correctIndices.get(Number(match[1])) ?? -1
+    // A question without a usable answer key cannot be graded — drop it
+    // rather than silently marking option A as correct.
+    if (correctIndex < 0 || correctIndex >= options.length) continue
+    if (new Set(options.map(answerKey)).size !== options.length) continue
     questions.push({
       kind: 'choice',
-      id: `reading-${index}`,
+      id: `reading-${questions.length}`,
       prompt: match[2].trim(),
       options,
-      correctIndex: correctIndex >= 0 && correctIndex < options.length ? correctIndex : 0,
+      correctIndex,
     })
   }
 
@@ -108,10 +129,43 @@ export function parseReadingResponse(content: string): {
   return { passage, questions }
 }
 
+/**
+ * Accepts the validated JSON contract and, for an older deployed function, the
+ * legacy free-text format. Returns null when neither yields a usable quiz.
+ */
+export function readingFromAi(
+  data: Record<string, unknown>,
+  maxQuestions: number,
+): { passage: string; questions: ChoiceQuestion[] } | null {
+  const structured = validateReading(data, maxQuestions)
+  if (structured) {
+    return {
+      passage: structured.passage,
+      questions: structured.questions.map((question, index) => ({
+        kind: 'choice',
+        id: `reading-${index}`,
+        prompt: question.question,
+        options: question.options,
+        correctIndex: question.answerIndex,
+      })),
+    }
+  }
+  if (typeof data.content === 'string') {
+    try {
+      return parseReadingResponse(data.content)
+    } catch {
+      return null
+    }
+  }
+  return null
+}
+
 export interface GenerateOptions {
   type: QuizType
   words: Word[]
   questionCount: number
+  /** Passed to the model so it can tune how close the distractors sit. */
+  difficulty: Difficulty
   /** Guests have no Edge Function access — they get locally built questions. */
   useAi: boolean
 }
@@ -124,17 +178,24 @@ export async function generateQuiz({
   type,
   words,
   questionCount,
+  difficulty,
   useAi,
 }: GenerateOptions): Promise<QuizSession> {
   let quotaReached = false
+  // Circuit breaker: once the AI is unavailable or rate limited, the remaining
+  // questions go local instead of each waiting for their own timeout.
+  let aiStopped = false
   let fallbackCount = 0
 
   const callAi = async <T>(run: () => Promise<T>): Promise<T | null> => {
-    if (!useAi || quotaReached) return null
+    if (!useAi || quotaReached || aiStopped) return null
     try {
       return await run()
     } catch (error) {
       if (error instanceof AiDailyLimitError) quotaReached = true
+      else if (error instanceof AiRateLimitError || error instanceof AiUnavailableError) {
+        aiStopped = true
+      }
       return null
     }
   }
@@ -145,15 +206,17 @@ export async function generateQuiz({
       aiReadingComprehension(
         chosen.map((word) => word.word),
         questionCount,
+        difficulty,
       ),
     )
-    if (!data?.content) throw quotaReached ? new AiDailyLimitError() : new ReadingParseError()
-    const parsed = parseReadingResponse(data.content)
+    const parsed = data ? readingFromAi(data, questionCount) : null
+    if (!parsed) throw quotaReached ? new AiDailyLimitError() : new ReadingParseError()
     return {
       type,
       questions: parsed.questions,
       passage: parsed.passage,
       words: chosen,
+      difficulty,
       quotaReached,
       fallbackCount: 0,
     }
@@ -165,18 +228,16 @@ export async function generateQuiz({
   const questions = await mapLimited<Word, QuizQuestion>(chosen, CONCURRENCY, async (word) => {
     switch (type) {
       case 'multiple': {
-        const data = await callAi(() =>
-          aiWrongAnswers(word.word, word.definition, word.partOfSpeech),
+        const data = validateWrongAnswers(
+          await callAi(() =>
+            aiWrongAnswers(word.word, word.definition, word.partOfSpeech, difficulty),
+          ),
         )
-        if (
-          !data?.correctAnswer ||
-          !Array.isArray(data.wrongAnswers) ||
-          data.wrongAnswers.length < 3
-        ) {
+        if (!data) {
           fallbackCount++
           return localChoiceQuestion(word, pool)
         }
-        const options = shuffle([data.correctAnswer, ...data.wrongAnswers.slice(0, 3)])
+        const options = shuffle([data.correctAnswer, ...data.wrongAnswers])
         return {
           kind: 'choice',
           id: word.id,
@@ -188,8 +249,12 @@ export async function generateQuiz({
       }
 
       case 'open': {
-        const data = await callAi(() => aiOpenClause(word.word, word.definition, word.partOfSpeech))
-        if (!data?.question || !data.answer) {
+        const data = validateOpenClause(
+          await callAi(() =>
+            aiOpenClause(word.word, word.definition, word.partOfSpeech, difficulty),
+          ),
+        )
+        if (!data) {
           fallbackCount++
           return localTextQuestion(word, word.definition)
         }
@@ -203,8 +268,10 @@ export async function generateQuiz({
       }
 
       case 'gap': {
-        const data = await callAi(() => aiGapFill(word.word, word.definition, word.partOfSpeech))
-        if (!data?.sentence || !data.answer) {
+        const data = validateGapFill(
+          await callAi(() => aiGapFill(word.word, word.definition, word.partOfSpeech, difficulty)),
+        )
+        if (!data) {
           fallbackCount++
           return localTextQuestion(word, `____ — ${word.definition}`)
         }
@@ -218,8 +285,10 @@ export async function generateQuiz({
       }
 
       case 'gap-verb-form': {
-        const data = await callAi(() => aiGapFillVerbForm(word.word, word.definition))
-        if (!data?.sentence || !data.answer) {
+        const data = validateGapFill(
+          await callAi(() => aiGapFillVerbForm(word.word, word.definition, difficulty)),
+        )
+        if (!data) {
           fallbackCount++
           return localTextQuestion(word, `____ — ${word.definition}`, word.word)
         }
@@ -240,5 +309,5 @@ export async function generateQuiz({
     }
   })
 
-  return { type, questions, words: chosen, quotaReached, fallbackCount }
+  return { type, questions, words: chosen, difficulty, quotaReached, fallbackCount }
 }

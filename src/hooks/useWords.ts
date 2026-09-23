@@ -1,6 +1,7 @@
+import { useEffect } from 'react'
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query'
 import { useAuth } from '@/context/AuthContext'
-import { guestWords } from '@/lib/guest/guestStore'
+import { GUEST_WORDS_KEY, guestWords } from '@/lib/guest/guestStore'
 import { supabaseWords } from '@/lib/supabase/words'
 import type { NewWord, Word, WordsBackend } from '@/types/domain'
 
@@ -14,6 +15,21 @@ export function useWordsBackend(): WordsBackend | null {
 export function useWords() {
   const { scope, state } = useAuth()
   const backend = useWordsBackend()
+  const queryClient = useQueryClient()
+
+  // A guest's dictionary lives in localStorage; another tab changing it fires
+  // a `storage` event here, so this tab re-reads instead of overwriting it
+  // with a stale copy on the next edit.
+  useEffect(() => {
+    if (state.status !== 'guest') return
+    const onStorage = (event: StorageEvent) => {
+      if (event.key === null || event.key === GUEST_WORDS_KEY) {
+        void queryClient.invalidateQueries({ queryKey: ['words', 'guest'] })
+      }
+    }
+    window.addEventListener('storage', onStorage)
+    return () => window.removeEventListener('storage', onStorage)
+  }, [state.status, queryClient])
 
   return useQuery({
     queryKey: ['words', scope],

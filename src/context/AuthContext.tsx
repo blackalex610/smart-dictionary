@@ -1,4 +1,5 @@
-import { createContext, useCallback, useContext, useEffect, useMemo, useState } from 'react'
+import { createContext, useCallback, useContext, useEffect, useMemo, useRef, useState } from 'react'
+import { useQueryClient } from '@tanstack/react-query'
 import type { Session } from '@supabase/supabase-js'
 import { supabase } from '@/lib/supabase/client'
 import { signInWithGoogle, signOut as supabaseSignOut, toAppUser } from '@/lib/supabase/auth'
@@ -31,23 +32,36 @@ function isGuestFlagSet(): boolean {
 
 export function AuthProvider({ children }: { children: React.ReactNode }) {
   const [state, setState] = useState<AuthState>({ status: 'loading' })
+  const queryClient = useQueryClient()
+  const userIdRef = useRef<string | null>(null)
 
   useEffect(() => {
     let active = true
 
     const apply = (session: Session | null) => {
       if (!active) return
+      const nextUserId = session?.user?.id ?? null
+      // Signing out, or switching account in another tab: drop every cached
+      // query so one person's words are never shown to the next.
+      if (userIdRef.current !== null && userIdRef.current !== nextUserId) queryClient.clear()
+      const isNewUser = nextUserId !== null && nextUserId !== userIdRef.current
+      userIdRef.current = nextUserId
+
       if (session?.user) {
         removeKey(GUEST_KEY)
         const user = toAppUser(session.user)
         setState({ status: 'authenticated', user, session })
-        void upsertProfile(user)
+        // Once per sign-in, not on every hourly token refresh.
+        if (isNewUser) void upsertProfile(user)
         return
       }
       setState(isGuestFlagSet() ? { status: 'guest' } : { status: 'anonymous' })
     }
 
-    void supabase.auth.getSession().then(({ data }) => apply(data.session))
+    supabase.auth
+      .getSession()
+      .then(({ data }) => apply(data.session))
+      .catch(() => apply(null))
 
     const { data: subscription } = supabase.auth.onAuthStateChange((_event, session) => {
       apply(session)
@@ -57,7 +71,7 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
       active = false
       subscription.subscription.unsubscribe()
     }
-  }, [])
+  }, [queryClient])
 
   const continueAsGuest = useCallback(() => {
     writeString(GUEST_KEY, 'true')
@@ -71,9 +85,16 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
 
   const signOut = useCallback(async () => {
     removeKey(GUEST_KEY)
-    await supabaseSignOut()
-    setState({ status: 'anonymous' })
-  }, [])
+    try {
+      await supabaseSignOut()
+    } finally {
+      // Even if the server call failed the local session is gone; never leave
+      // the UI looking signed in.
+      userIdRef.current = null
+      queryClient.clear()
+      setState({ status: 'anonymous' })
+    }
+  }, [queryClient])
 
   const scope =
     state.status === 'authenticated'

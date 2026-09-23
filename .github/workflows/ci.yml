@@ -33,11 +33,72 @@ jobs:
       - name: Typecheck
         run: npm run typecheck
 
-      - name: Unit tests
+      # Includes supabase/tests: every migration applied to PGlite and the
+      # RLS / quota / tier rules checked against it. Placeholder values only
+      # — src/lib/supabase/client.ts throws if unset (correct in production;
+      # tests never make a real network call, so any well-formed value works.)
+      - name: Unit, integration and database tests
+        env:
+          VITE_SUPABASE_URL: https://placeholder.supabase.co
+          VITE_SUPABASE_ANON_KEY: placeholder-anon-key
         run: npm test
 
       - name: Build
         run: npm run build
+
+  e2e:
+    name: e2e (guest golden path + accessibility)
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/setup-node@v4
+        with:
+          node-version: lts/*
+          cache: npm
+
+      - run: npm ci
+
+      - name: Install Playwright browsers
+        run: npx playwright install --with-deps chromium
+
+      # Placeholder values: Vite inlines VITE_* at build time, and the built
+      # bundle's client.ts throws if unset (correct in production). Guest
+      # mode — the only thing this suite exercises — never calls Supabase.
+      - name: Build
+        env:
+          VITE_SUPABASE_URL: https://placeholder.supabase.co
+          VITE_SUPABASE_ANON_KEY: placeholder-anon-key
+        run: npm run build
+
+      # Runs against the production build under the production CSP
+      # (vite.config.ts mirrors vercel.json's headers for `preview`), not the
+      # dev server, so this also catches CSP regressions.
+      - name: Guest golden path + WCAG 2 A/AA scan
+        run: npm run e2e
+
+      - name: Upload Playwright report
+        if: ${{ !cancelled() }}
+        uses: actions/upload-artifact@v4
+        with:
+          name: playwright-report
+          path: playwright-report/
+          retention-days: 14
+
+  edge-functions:
+    name: edge functions (deno check)
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: denoland/setup-deno@v2
+        with:
+          deno-version: v2.x
+
+      # The React typecheck never sees the Deno code; a missing function or a
+      # bad import here would otherwise only surface as a 500 in production.
+      - name: Type-check ai-chat
+        run: deno check supabase/functions/ai-chat/index.ts
 
   security:
     name: dependency audit
@@ -52,8 +113,9 @@ jobs:
 
       - run: npm ci
 
-      # High/critical only: the two known moderate CVEs (esbuild dev-server
-      # request forgery, react-router open redirect) both require a major
-      # version bump and are tracked separately rather than failing every PR.
+      # Production dependencies, high/critical only. Known and accepted:
+      # react-router open redirect (moderate) — the app only navigates to fixed
+      # routes, never to user- or AI-supplied URLs; the fix is the v7 major.
+      # vite/esbuild advisories affect the local dev server only (devDeps).
       - name: npm audit (high+)
         run: npm audit --omit=dev --audit-level=high

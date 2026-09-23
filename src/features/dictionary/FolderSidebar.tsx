@@ -20,7 +20,7 @@ export function FolderSidebar({ folders, counts, total, active, onSelect, onCrea
   ]
 
   return (
-    <aside className="flex h-full min-h-[560px] flex-col rounded-card border border-line bg-surface shadow-card">
+    <aside className="flex h-full flex-col rounded-card lg:min-h-[560px] border border-line bg-surface shadow-card">
       <div className="flex items-center justify-between px-5 pb-3 pt-[18px]">
         <h2 className="text-[15px] font-semibold text-fg">{t('my-folders')}</h2>
         <button
@@ -33,7 +33,7 @@ export function FolderSidebar({ folders, counts, total, active, onSelect, onCrea
         </button>
       </div>
 
-      <nav className="flex-1 overflow-y-auto scrollbar-slim px-2 pb-2">
+      <nav aria-label={t('my-folders')} className="flex-1 overflow-y-auto scrollbar-slim px-2 pb-2">
         <ul className="space-y-0.5">
           {rows.map((row) => {
             const isActive = active === row.key

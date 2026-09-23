@@ -3,3 +3,5 @@ node_modules
 coverage
 playwright-report
 backend
+# Brief/prompt document kept verbatim as written.
+PRODUCTIONREADY.md

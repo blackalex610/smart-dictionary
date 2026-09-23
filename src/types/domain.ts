@@ -29,7 +29,8 @@ export interface WordsBackend {
   create(input: NewWord): Promise<Word>
   update(id: string, patch: Partial<NewWord>): Promise<Word>
   remove(id: string): Promise<void>
-  replaceAll(words: Word[]): Promise<void>
+  /** Deletes every word the current user owns. */
+  clear(): Promise<void>
 }
 
 export type SortOrder = 'newest' | 'oldest' | 'az' | 'za'
@@ -56,6 +57,15 @@ export type QuizType = (typeof QUIZ_TYPES)[number]
 export function isQuizType(v: unknown): v is QuizType {
   return typeof v === 'string' && (QUIZ_TYPES as readonly string[]).includes(v)
 }
+
+export const DIFFICULTIES = ['easy', 'medium', 'hard'] as const
+export type Difficulty = (typeof DIFFICULTIES)[number]
+
+export function isDifficulty(v: unknown): v is Difficulty {
+  return typeof v === 'string' && (DIFFICULTIES as readonly string[]).includes(v)
+}
+
+export const DEFAULT_DIFFICULTY: Difficulty = 'medium'
 
 export interface QuizResult {
   id: string

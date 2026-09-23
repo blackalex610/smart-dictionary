@@ -1,9 +1,10 @@
 import { useEffect, useRef, useState } from 'react'
 import { NavLink, Outlet, useNavigate } from 'react-router-dom'
-import { Bell, ChevronDown, LogOut, Moon, Sun } from 'lucide-react'
+import { ChevronDown, LogOut, Moon, Sun } from 'lucide-react'
 import { BackToTop } from '@/components/ui/BackToTop'
 import { LogoMark } from '@/components/ui/Logo'
 import { ChatWidget } from '@/features/chat/ChatWidget'
+import { AppActionsProvider } from '@/context/AppActionsContext'
 import { useAuth } from '@/context/AuthContext'
 import { useT } from '@/context/I18nContext'
 import { useTheme } from '@/context/ThemeContext'
@@ -31,8 +32,15 @@ function UserMenu() {
     const onClick = (event: MouseEvent) => {
       if (!ref.current?.contains(event.target as Node)) setOpen(false)
     }
+    const onKeyDown = (event: KeyboardEvent) => {
+      if (event.key === 'Escape') setOpen(false)
+    }
     document.addEventListener('mousedown', onClick)
-    return () => document.removeEventListener('mousedown', onClick)
+    document.addEventListener('keydown', onKeyDown)
+    return () => {
+      document.removeEventListener('mousedown', onClick)
+      document.removeEventListener('keydown', onKeyDown)
+    }
   }, [open])
 
   const user = state.status === 'authenticated' ? state.user : null
@@ -85,8 +93,11 @@ function UserMenu() {
             type="button"
             onClick={async () => {
               setOpen(false)
-              await signOut()
-              navigate('/')
+              try {
+                await signOut()
+              } finally {
+                navigate('/')
+              }
             }}
             className="flex w-full items-center gap-2.5 px-3.5 py-2.5 text-sm text-fg transition hover:bg-surface-2"
           >
@@ -103,17 +114,55 @@ export function AppLayout() {
   const t = useT()
 
   return (
-    <div className="min-h-screen bg-canvas">
-      <header className="sticky top-0 z-30 border-b border-line bg-surface">
-        <div className="relative mx-auto flex h-[68px] max-w-[1440px] items-center justify-between px-8">
-          <NavLink to="/app" className="flex items-center gap-3">
-            <LogoMark />
-            <span className="text-[19px] font-bold tracking-[-0.01em] text-fg">
-              {t('app-name')}
-            </span>
-          </NavLink>
+    <AppActionsProvider>
+      <div className="min-h-screen bg-canvas">
+        <header className="sticky top-0 z-30 border-b border-line bg-surface">
+          <div className="relative mx-auto flex h-[68px] max-w-[1440px] items-center justify-between px-4 sm:px-8">
+            <NavLink to="/app" className="flex items-center gap-3">
+              <LogoMark />
+              <span className="text-[19px] font-bold tracking-[-0.01em] text-fg">
+                {t('app-name')}
+              </span>
+            </NavLink>
 
-          <nav className="absolute left-1/2 top-0 hidden h-full -translate-x-1/2 items-center gap-10 md:flex">
+            <nav
+              aria-label={t('main-navigation')}
+              className="absolute left-1/2 top-0 hidden h-full -translate-x-1/2 items-center gap-10 md:flex"
+            >
+              {NAV.map((item) => (
+                <NavLink
+                  key={item.to}
+                  to={item.to}
+                  end={item.end}
+                  className={({ isActive }) =>
+                    cn(
+                      'relative flex h-full items-center text-[15px] font-medium transition-colors',
+                      isActive ? 'text-brand' : 'text-fg-muted hover:text-fg',
+                    )
+                  }
+                >
+                  {({ isActive }) => (
+                    <>
+                      {t(item.key)}
+                      {isActive && (
+                        <span className="absolute inset-x-0 bottom-0 h-[2.5px] rounded-t-full bg-brand" />
+                      )}
+                    </>
+                  )}
+                </NavLink>
+              ))}
+            </nav>
+
+            <div className="flex items-center gap-3">
+              <UserMenu />
+            </div>
+          </div>
+
+          {/* Below md the centred nav is hidden; this row keeps every section reachable. */}
+          <nav
+            aria-label={t('main-navigation')}
+            className="flex overflow-x-auto border-t border-line px-2 scrollbar-slim md:hidden"
+          >
             {NAV.map((item) => (
               <NavLink
                 key={item.to}
@@ -121,42 +170,26 @@ export function AppLayout() {
                 end={item.end}
                 className={({ isActive }) =>
                   cn(
-                    'relative flex h-full items-center text-[15px] font-medium transition-colors',
-                    isActive ? 'text-brand' : 'text-fg-muted hover:text-fg',
+                    'flex h-11 shrink-0 items-center border-b-2 px-3 text-[14.5px] font-medium transition-colors',
+                    isActive
+                      ? 'border-brand text-brand'
+                      : 'border-transparent text-fg-muted hover:text-fg',
                   )
                 }
               >
-                {({ isActive }) => (
-                  <>
-                    {t(item.key)}
-                    {isActive && (
-                      <span className="absolute inset-x-0 bottom-0 h-[2.5px] rounded-t-full bg-brand" />
-                    )}
-                  </>
-                )}
+                {t(item.key)}
               </NavLink>
             ))}
           </nav>
+        </header>
 
-          <div className="flex items-center gap-3">
-            <button
-              type="button"
-              className="rounded-lg p-2 text-fg-muted transition hover:bg-surface-2 hover:text-fg"
-              aria-label={t('notifications')}
-            >
-              <Bell size={20} />
-            </button>
-            <UserMenu />
-          </div>
-        </div>
-      </header>
+        <main className="mx-auto max-w-[1440px] px-4 pb-24 sm:px-8 sm:pb-10">
+          <Outlet />
+        </main>
 
-      <main className="mx-auto max-w-[1440px] px-8 pb-10">
-        <Outlet />
-      </main>
-
-      <BackToTop />
-      <ChatWidget />
-    </div>
+        <BackToTop />
+        <ChatWidget />
+      </div>
+    </AppActionsProvider>
   )
 }

@@ -1,5 +1,11 @@
 import { supabase } from './client'
-import { FreeWordLimitError, isFreeWordLimit, isUnknownColumn } from '@/lib/errors'
+import {
+  DuplicateWordError,
+  FreeWordLimitError,
+  isFreeWordLimit,
+  isUniqueViolation,
+  isUnknownColumn,
+} from '@/lib/errors'
 import { DEFAULT_FOLDER } from '@/lib/folders'
 import { isPartOfSpeech, type NewWord, type Word, type WordsBackend } from '@/types/domain'
 
@@ -21,6 +27,7 @@ let hasExampleColumn = true
 
 const SELECT_WITH_EXAMPLE = 'id, word, definition, part_of_speech, example, folder, created_at'
 const SELECT_BASE = 'id, word, definition, part_of_speech, folder, created_at'
+const LIST_PAGE_SIZE = 1000
 
 function toWord(row: WordRow): Word {
   const pos = row.part_of_speech
@@ -45,25 +52,42 @@ function toRow(input: Partial<NewWord>): Record<string, unknown> {
   return row
 }
 
+/**
+ * From the local session: `getUser()` would add an auth-server round trip to
+ * every insert (200 of them for one import). RLS re-checks the JWT anyway.
+ */
 async function currentUserId(): Promise<string> {
-  const { data } = await supabase.auth.getUser()
-  const id = data.user?.id
+  const { data } = await supabase.auth.getSession()
+  const id = data.session?.user.id
   if (!id) throw new Error('NOT_AUTHENTICATED')
   return id
 }
 
 export const supabaseWords: WordsBackend = {
   async list() {
-    const run = (columns: string) =>
-      supabase.from('words').select(columns).order('created_at', { ascending: false })
+    // PostgREST caps a response at `max-rows` (1000 on Supabase), so a large
+    // dictionary has to be read page by page or words silently go missing.
+    const run = (columns: string, from: number) =>
+      supabase
+        .from('words')
+        .select(columns)
+        .order('created_at', { ascending: false })
+        .order('id', { ascending: true })
+        .range(from, from + LIST_PAGE_SIZE - 1)
 
-    let { data, error } = await run(hasExampleColumn ? SELECT_WITH_EXAMPLE : SELECT_BASE)
-    if (error && isUnknownColumn(error, 'example')) {
-      hasExampleColumn = false
-      ;({ data, error } = await run(SELECT_BASE))
+    const rows: WordRow[] = []
+    for (let from = 0; ; from += LIST_PAGE_SIZE) {
+      let { data, error } = await run(hasExampleColumn ? SELECT_WITH_EXAMPLE : SELECT_BASE, from)
+      if (error && isUnknownColumn(error, 'example')) {
+        hasExampleColumn = false
+        ;({ data, error } = await run(SELECT_BASE, from))
+      }
+      if (error) throw error
+      const page = (data ?? []) as unknown as WordRow[]
+      rows.push(...page)
+      if (page.length < LIST_PAGE_SIZE) break
     }
-    if (error) throw error
-    return ((data ?? []) as unknown as WordRow[]).map(toWord)
+    return rows.map(toWord)
   },
 
   async create(input) {
@@ -82,6 +106,7 @@ export const supabaseWords: WordsBackend = {
     }
     if (error) {
       if (isFreeWordLimit(error)) throw new FreeWordLimitError()
+      if (isUniqueViolation(error)) throw new DuplicateWordError(input.word)
       throw error
     }
     return toWord(data as unknown as WordRow)
@@ -101,7 +126,10 @@ export const supabaseWords: WordsBackend = {
       hasExampleColumn = false
       ;({ data, error } = await run())
     }
-    if (error) throw error
+    if (error) {
+      if (isUniqueViolation(error)) throw new DuplicateWordError(patch.word ?? '')
+      throw error
+    }
     return toWord(data as unknown as WordRow)
   },
 
@@ -110,34 +138,12 @@ export const supabaseWords: WordsBackend = {
     if (error) throw error
   },
 
-  async replaceAll(words) {
+  async clear() {
+    // One statement scoped to the owner (RLS enforces the same), instead of
+    // listing ids client-side and sending them back in a giant `in (...)`.
     const userId = await currentUserId()
-    const existing = await supabaseWords.list()
-    const keep = new Set(words.map((w) => w.id))
-    const toDelete = existing.filter((w) => !keep.has(w.id)).map((w) => w.id)
-
-    if (toDelete.length) {
-      const { error } = await supabase.from('words').delete().in('id', toDelete)
-      if (error) throw error
-    }
-    if (words.length) {
-      const rows = words.map((w) => ({
-        id: w.id,
-        user_id: userId,
-        ...toRow({
-          word: w.word,
-          definition: w.definition,
-          partOfSpeech: w.partOfSpeech,
-          folder: w.folder,
-          example: w.example,
-        }),
-      }))
-      const { error } = await supabase.from('words').upsert(rows, { onConflict: 'id' })
-      if (error) {
-        if (isFreeWordLimit(error)) throw new FreeWordLimitError()
-        throw error
-      }
-    }
+    const { error } = await supabase.from('words').delete().eq('user_id', userId)
+    if (error) throw error
   },
 }
 

@@ -1,4 +1,5 @@
-import { useEffect, useRef } from 'react'
+import { useRef } from 'react'
+import { useDialogFocus } from '@/hooks/useDialogFocus'
 import { cn } from '@/lib/cn'
 
 interface ModalProps {
@@ -11,37 +12,7 @@ interface ModalProps {
 
 export function Modal({ open, onClose, labelledBy, className, children }: ModalProps) {
   const panelRef = useRef<HTMLDivElement>(null)
-
-  useEffect(() => {
-    if (!open) return
-    const onKeyDown = (event: KeyboardEvent) => {
-      if (event.key === 'Escape') onClose()
-      if (event.key !== 'Tab') return
-      const focusable = panelRef.current?.querySelectorAll<HTMLElement>(
-        'button, [href], input, select, textarea, [tabindex]:not([tabindex="-1"])',
-      )
-      if (!focusable || focusable.length === 0) return
-      const first = focusable[0]
-      const last = focusable[focusable.length - 1]
-      if (event.shiftKey && document.activeElement === first) {
-        event.preventDefault()
-        last.focus()
-      } else if (!event.shiftKey && document.activeElement === last) {
-        event.preventDefault()
-        first.focus()
-      }
-    }
-    document.addEventListener('keydown', onKeyDown)
-    const previousOverflow = document.body.style.overflow
-    document.body.style.overflow = 'hidden'
-    window.setTimeout(() => {
-      panelRef.current?.querySelector<HTMLElement>('input, button')?.focus()
-    }, 0)
-    return () => {
-      document.removeEventListener('keydown', onKeyDown)
-      document.body.style.overflow = previousOverflow
-    }
-  }, [open, onClose])
+  useDialogFocus(open, panelRef, onClose)
 
   if (!open) return null
 
@@ -62,8 +33,9 @@ export function Modal({ open, onClose, labelledBy, className, children }: ModalP
         role="dialog"
         aria-modal="true"
         aria-labelledby={labelledBy}
+        tabIndex={-1}
         className={cn(
-          'w-full max-w-md rounded-2xl border border-line bg-surface p-6 shadow-pop animate-slide-up',
+          'max-h-[calc(100vh-2rem)] w-full max-w-md overflow-y-auto rounded-2xl border border-line bg-surface p-6 shadow-pop animate-slide-up focus:outline-none',
           className,
         )}
       >

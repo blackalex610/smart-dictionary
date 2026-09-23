@@ -1,3 +1,5 @@
+import { StorageWriteError } from '@/lib/errors'
+
 export function readJson<T>(key: string, fallback: T): T {
   try {
     const raw = localStorage.getItem(key)
@@ -13,6 +15,18 @@ export function writeJson(key: string, value: unknown): void {
     localStorage.setItem(key, JSON.stringify(value))
   } catch {
     /* quota / private mode — non-fatal */
+  }
+}
+
+/**
+ * For data the user would lose: throws when the browser refuses the write
+ * (quota exceeded, storage disabled) instead of pretending it succeeded.
+ */
+export function writeJsonOrThrow(key: string, value: unknown): void {
+  try {
+    localStorage.setItem(key, JSON.stringify(value))
+  } catch {
+    throw new StorageWriteError()
   }
 }
 

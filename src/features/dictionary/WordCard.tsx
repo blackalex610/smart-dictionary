@@ -29,7 +29,9 @@ export function WordCard({ word, isEditing, onEdit, onDelete, onMove }: Props) {
 
       <div className="flex items-start justify-between gap-3">
         <div className="flex min-w-0 flex-wrap items-center gap-2.5">
-          <h3 className="text-[17px] font-bold leading-tight text-fg">{word.word}</h3>
+          <h3 className="min-w-0 break-words text-[17px] font-bold leading-tight text-fg [overflow-wrap:anywhere]">
+            {word.word}
+          </h3>
           <span className="rounded-md bg-brand-soft px-2 py-[3px] text-[12.5px] font-medium text-brand">
             {t(word.partOfSpeech as TranslationKey)}
           </span>
@@ -77,10 +79,12 @@ export function WordCard({ word, isEditing, onEdit, onDelete, onMove }: Props) {
         </div>
       </div>
 
-      <p className="mt-2 text-[14.5px] leading-relaxed text-fg-muted">{word.definition}</p>
+      <p className="mt-2 text-[14.5px] leading-relaxed text-fg-muted [overflow-wrap:anywhere]">
+        {word.definition}
+      </p>
 
       {word.example && (
-        <p className="mt-1.5 border-l-2 border-line pl-2.5 text-[13.5px] italic text-fg-subtle">
+        <p className="mt-1.5 border-l-2 border-line pl-2.5 text-[13.5px] italic text-fg-subtle [overflow-wrap:anywhere]">
           {word.example}
         </p>
       )}

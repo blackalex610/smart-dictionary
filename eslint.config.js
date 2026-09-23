@@ -55,7 +55,7 @@ export default tseslint.config(
     // correctness. Splitting each into two files to silence it would be
     // exactly the kind of premature abstraction this project is trying to
     // avoid, so the rule is scoped off for these files only.
-    files: ['src/context/**/*.tsx', 'src/components/ui/Toast.tsx'],
+    files: ['src/context/**/*.tsx', 'src/components/ui/Toast.tsx', 'src/routes.tsx'],
     rules: { 'react-refresh/only-export-components': 'off' },
   },
   prettier,
